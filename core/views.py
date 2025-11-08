@@ -8,7 +8,7 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from .models import Paciente, SesionPaciente, Dispositivo, Cuidador
+from .models import Paciente, SesionPaciente, Dispositivo, Cuidador, DatoSensor
 from .serializers import SesionSerializer
 from rest_framework.decorators import permission_classes
 
