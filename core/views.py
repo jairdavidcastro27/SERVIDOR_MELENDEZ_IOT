@@ -35,6 +35,56 @@ def login_cuidador(request):
         return Response({'error': 'Credenciales inválidas o no eres cuidador'}, status=status.HTTP_401_UNAUTHORIZED)
 
 
+
+# ==================== ENDPOINT PARA RECIBIR TELEMETRÍA DEL ESP32 ====================
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recibir_telemetria(request):
+    # Espera JSON: {"distancia": 123.45, "nivel": 7, "temperatura": 25.0, "color": "verde"}
+    try:
+        distancia = float(request.data.get('distancia'))
+    except (TypeError, ValueError):
+        return Response({'error': 'distancia requerida y numérica'}, status=status.HTTP_400_BAD_REQUEST)
+
+    nivel_raw = request.data.get('nivel')
+    try:
+        nivel = int(nivel_raw) if nivel_raw is not None else 0
+    except ValueError:
+        nivel = 0
+
+    temperatura_raw = request.data.get('temperatura')
+    try:
+        temperatura = float(temperatura_raw) if temperatura_raw is not None else 0.0
+    except ValueError:
+        temperatura = 0.0
+
+    color = request.data.get('color') or ''
+
+    # Buscar la sesión activa
+    sesion = SesionPaciente.objects.filter(activa=True).first()
+    if not sesion:
+        return Response({'error': 'No hay sesión activa para registrar telemetría'}, status=status.HTTP_409_CONFLICT)
+
+    sensor = DatoSensor.objects.create(
+        sesion=sesion,
+        color=color,
+        temperatura=temperatura,
+        distancia=distancia,
+        nivel=nivel
+    )
+
+    return Response(
+        {'status': 'ok', 'id': sensor.id, 'timestamp': sensor.timestamp.isoformat()},
+        status=status.HTTP_201_CREATED
+    )
+
+
+
+
+
+
 # ==================== INICIAR SESIÓN POR DNI ====================
 class IniciarSesionDNI(APIView):
     def post(self, request):

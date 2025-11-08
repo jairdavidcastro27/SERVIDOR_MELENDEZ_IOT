@@ -10,4 +10,7 @@ urlpatterns = [
 
     # VER QUIÉN USA LOS LENTES
     path('paciente-actual/', views.PacienteActual.as_view()),
+
+        # ← NUEVO: endpoint para telemetría del ESP32
+    path('telemetria/', views.recibir_telemetria),
 ]
