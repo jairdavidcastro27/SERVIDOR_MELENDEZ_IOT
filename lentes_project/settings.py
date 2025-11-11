@@ -94,7 +94,7 @@ if 'postgres' in DATABASES['default']['ENGINE']:
 
 
 # --- REDIS PARA WEBSOCKETS (crea uno en Railway) ---
-REDIS_URL = config('REDIS_URL', default='redis://localhost:6379')
+REDIS_URL = config('REDIS_URL', default='redis://default:DKhVdNaWYONOBqSdxkqGMFgTYeodMlXz@mainline.proxy.rlwy.net:54949')
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
