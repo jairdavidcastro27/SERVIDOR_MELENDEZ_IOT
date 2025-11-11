@@ -95,11 +95,26 @@ if 'postgres' in DATABASES['default']['ENGINE']:
 
 # --- REDIS PARA WEBSOCKETS (crea uno en Railway) ---
 REDIS_URL = config('REDIS_URL', default='redis://default:DKhVdNaWYONOBqSdxkqGMFgTYeodMlXz@mainline.proxy.rlwy.net:54949')
+
+# Parsear URL de Redis para channels_redis
+from urllib.parse import urlparse
+
+def parse_redis_url(url):
+    """Parsea la URL de Redis y retorna el formato correcto para channels_redis"""
+    parsed = urlparse(url)
+    # channels_redis acepta tupla (host, port, password) o URL string
+    if parsed.password:
+        return (parsed.hostname, parsed.port, parsed.password)
+    return (parsed.hostname, parsed.port)
+
+redis_host = parse_redis_url(REDIS_URL)
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [REDIS_URL],
+            "hosts": [redis_host],
+            "capacity": 1500,
+            "expiry": 10,
         },
     },
 }
