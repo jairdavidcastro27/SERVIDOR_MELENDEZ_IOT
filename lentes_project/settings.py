@@ -171,7 +171,13 @@ if REDIS_URL:
     }
 
 # --- PRODUCCIÓN ---
-ALLOWED_HOSTS = ['*']  # Railway necesita esto
+ALLOWED_HOSTS = [
+    
+    'servidormelendeziot-production.up.railway.app',
+    '127.0.0.1',
+    'localhost',
+]
+
 SECURE_SSL_REDIRECT = False  # Para desarrollo
 
 # --- ARCHIVOS ESTÁTICOS ---
