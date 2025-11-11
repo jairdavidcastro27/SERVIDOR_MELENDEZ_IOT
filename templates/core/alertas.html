@@ -606,898 +606,456 @@
         </div>
     </div>
 
-    <script>
-        // Verificar autenticación
-        if (!localStorage.getItem('token')) {
-            window.location.href = '/login_cuidador/';
-        }
+   <script>
+    // Verificar autenticación
+    if (!localStorage.getItem('token')) {
+        window.location.href = '/login_cuidador/';
+    }
 
-        const token = localStorage.getItem('token');
-     
-        // Funciones de utilidad
-        function showError(message) {
-            const notification = document.createElement('div');
-            notification.className = 'notification error';
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            setTimeout(() => notification.remove(), 5000);
-        }
+    const token = localStorage.getItem('token');
+    let sesionActivaId = null;
+    let sesionActivaNombre = null;
 
-        function showSuccess(message) {
-            const notification = document.createElement('div');
-            notification.className = 'notification success';
-            notification.textContent = message;
-            document.body.appendChild(notification);
-            setTimeout(() => notification.remove(), 5000);
-        }
+    // === Variables globales para audio ===
+    let audio = null;
 
-        function groupByDate(items) {
-            return items.reduce((acc, item) => {
-                const date = new Date(item.fecha).toLocaleDateString();
-                if (!acc[date]) {
-                    acc[date] = [];
-                }
-                acc[date].push(item);
-                return acc;
-            }, {});
-        }
+    // === Funciones de utilidad ===
+    function showError(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification error';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+    }
 
-        // Reproducir sonido
-        function playSound(type = 'alert') {
-            try {
-                const audio = new Audio(`/static/sounds/${type}.mp3`);
-                audio.play().catch(e => console.warn('No se pudo reproducir el sonido:', e));
-            } catch (e) {
-                console.warn('Error al reproducir el sonido:', e);
-            }
-        }
+    function showSuccess(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification success';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+    }
 
-        function navigate(path) {
-            // Animación de salida antes de navegar
-            document.querySelector('.container').style.animation = 'fadeOut 0.3s ease-out forwards';
-            setTimeout(() => window.location.href = path, 300);
-        }
+    function groupByDate(items) {
+        return items.reduce((acc, item) => {
+            const date = new Date(item.fecha).toLocaleDateString('es-PE');
+            if (!acc[date]) acc[date] = [];
+            acc[date].push(item);
+            return acc;
+        }, {});
+    }
 
-        function logout() {
-            showConfirmation(
-                'Cerrar sesión', 
-                '¿Estás seguro de que deseas cerrar la sesión del cuidador?',
-                () => {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('cuidador_id');
-                    localStorage.removeItem('nombre');
-                    window.location.href = '/login_cuidador/';
-                }
-            );
-        }
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
 
-        // Cargar datos al iniciar
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const sesion = await obtenerSesionActiva();
-                if (!sesion.activa) {
-                    showError('No hay una sesión activa');
-                }
+    // === Formato de fechas ===
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
 
-                // Iniciar animación de carga
-                const container = document.querySelector('.container');
-                container.style.opacity = '0';
-                container.style.transform = 'translateY(20px)';
-                
-                // Cargar datos
-                Promise.all([
-                    obtenerSesionActiva(),
-                    loadAlertas(),
-                    loadMensajes()
-                ]).then(() => {
-                    // Mostrar contenido con animación
-                    container.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                    container.style.opacity = '1';
-                    container.style.transform = 'translateY(0)';
-                    
-                    // Configurar actualización periódica
-                    setInterval(loadAlertas, 30000); // Actualizar alertas cada 30 segundos
-                    setInterval(loadMensajes, 60000); // Actualizar mensajes cada minuto
-                }).catch(error => {
-                    console.error('Error inicializando la aplicación:', error);
-                    showError('Error al cargar los datos iniciales');
-                });
-                
-                // Configurar el formulario
-                document.getElementById('mensajeForm').addEventListener('submit', handleEnviarMensaje);
-                
-                // Configurar eventos para el teclado
-                document.addEventListener('keydown', function(e) {
-                    // Cerrar modal con ESC
-                    if (e.key === 'Escape' && document.getElementById('mensajeModal').style.display === 'flex') {
-                        hideNuevoMensaje();
-                    }
-                });
-            } catch (error) {
-                console.error('Error al iniciar la aplicación:', error);
-                showError('Error al cargar los datos iniciales');
-            }
+        if (diffMins < 1) return 'Ahora';
+        if (diffMins < 60) return `Hace ${diffMins} min`;
+        if (diffHours < 24) return `Hace ${diffHours}h`;
+        if (diffDays === 1) return 'Ayer';
+        if (diffDays < 7) return `Hace ${diffDays} días`;
+        return date.toLocaleDateString('es-PE');
+    }
+
+    function formatTime(dateStr) {
+        return new Date(dateStr).toLocaleTimeString('es-PE', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
         });
+    }
 
-        async function obtenerSesionActiva() {
-            try {
-                const response = await fetch('/api/paciente-actual/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Error al obtener la sesión activa');
-                }
-                
-                const data = await response.json();
-                
-                // Ajustar según la estructura de respuesta de tu API
-                if (data && data.id) {  // Asumiendo que la respuesta tiene un ID cuando hay sesión activa
-                    sesionActivaId = data.id;
-                    sesionActivaNombre = data.nombre_completo || 'Paciente actual';
-                    
-                    // Actualizar la interfaz
-                    const pacienteElement = document.getElementById('paciente-actual');
-                    if (pacienteElement) {
-                        pacienteElement.textContent = sesionActivaNombre;
-                    }
-                    
-                    return { activa: true, ...data };
-                } else {
-                    sesionActivaId = null;
-                    sesionActivaNombre = null;
-                    return { activa: false, mensaje: 'No hay sesión activa' };
-                }
-            } catch (error) {
-                console.error('Error obteniendo sesión activa:', error);
-                sesionActivaId = null;
-                sesionActivaNombre = null;
-                return { activa: false, error: error.message };
-            }
+    function formatDateHeader(dateStr) {
+        const date = new Date(dateStr);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const isToday = date.toDateString() === today.toDateString();
+        const isYesterday = date.toDateString() === yesterday.toDateString();
+
+        if (isToday) return 'Hoy';
+        if (isYesterday) return 'Ayer';
+        return date.toLocaleDateString('es-PE', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long' 
+        });
+    }
+
+    function getAlertIcon(prioridad) {
+        switch (prioridad.toLowerCase()) {
+            case 'alta': return 'fas fa-exclamation-circle';
+            case 'media': return 'fas fa-exclamation-triangle';
+            case 'baja': return 'fas fa-info-circle';
+            default: return 'fas fa-bell';
         }
+    }
 
-        function cambiarTab(tab) {
-            // Animación de transición entre pestañas
-            const activeTab = document.querySelector('.tab.active');
-            const activeContent = document.querySelector('.content.active');
-            
-            if (activeTab && activeTab.onclick.toString().includes(tab)) return;
-            
-            // Desactivar pestaña actual
-            if (activeTab) activeTab.classList.remove('active');
-            if (activeContent) {
-                activeContent.style.animation = 'fadeOut 0.2s ease-out forwards';
-                setTimeout(() => {
-                    activeContent.classList.remove('active');
-                    activeContent.style.animation = '';
-                }, 200);
-            }
-            
-            // Activar nueva pestaña
-            const newTab = document.querySelector(`.tab[onclick*="${tab}"]`);
-            const newContent = document.getElementById(tab);
-            
-            if (newTab && newContent) {
-                newTab.classList.add('active');
-                newContent.style.display = 'block';
-                setTimeout(() => {
-                    newContent.style.animation = 'fadeIn 0.3s ease-out';
-                    newContent.classList.add('active');
-                }, 10);
-                
-                // Forzar actualización del contenido al cambiar de pestaña
-                if (tab === 'alertas') loadAlertas();
-                else if (tab === 'mensajes') loadMensajes();
-            }
+    function updateTabNotification(tab, hasUnread) {
+        const tabBtn = document.querySelector(`.tab[onclick*="${tab}"]`);
+        if (!tabBtn) return;
+
+        let badge = tabBtn.querySelector('.badge');
+        if (hasUnread && !badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = '●';
+            badge.style.cssText = `
+                position: absolute; top: 8px; right: 8px; 
+                background: var(--danger); color: white; 
+                border-radius: 50%; width: 10px; height: 10px;
+                font-size: 0; animation: pulse 2s infinite;
+            `;
+            tabBtn.style.position = 'relative';
+            tabBtn.appendChild(badge);
+        } else if (!hasUnread && badge) {
+            badge.remove();
         }
+    }
 
-        async function loadAlertas() {
-            try {
-                const response = await fetch('/api/alertas/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                
-                if (!response.ok) throw new Error('Error en la respuesta del servidor');
-                
-                const data = await response.json();
-                displayAlertas(data);
-                return data;
-            } catch (error) {
-                console.error('Error cargando alertas:', error);
-                showError('Error al cargar las alertas');
-                throw error;
+    // === Reproducir sonido ===
+    function playSound(type = 'alert') {
+        try {
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
             }
-        }
-
-        async function loadMensajes() {
-            try {
-                const response = await fetch('/api/mensajes/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                
-                if (!response.ok) throw new Error('Error en la respuesta del servidor');
-                
-                const data = await response.json();
-                displayMensajes(data);
-                return data;
-            } catch (error) {
-                console.error('Error cargando mensajes:', error);
-                showError('Error al cargar los mensajes');
-                throw error;
-            }
-        }
-
-        function displayAlertas(alertas) {
-            const container = document.getElementById('alertasContent');
-            if (!container) return;
-            
-            // Verificar si hay alertas
-            const emptyState = document.getElementById('emptyAlerts');
-            if (alertas.length === 0) {
-                emptyState.style.display = 'flex';
-                container.innerHTML = '';
-                return;
-            }
-            
-            // Ocultar estado vacío
-            emptyState.style.display = 'none';
-            
-            // Crear lista de alertas
-            let html = '';
-            let hasUnread = false;
-            
-            // Ordenar alertas por fecha (más recientes primero)
-            alertas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-            
-            alertas.forEach(alerta => {
-                if (!alerta.vista) hasUnread = true;
-                
-                const fecha = formatDate(alerta.fecha);
-                const prioridad = alerta.prioridad || 'media';
-                const icon = getAlertIcon(prioridad);
-                
-                html += `
-                    <div class="card alerta ${!alerta.vista ? 'unread' : ''}" data-id="${alerta.id}">
-                        <div class="card-header">
-                            <div class="d-flex align-items-center">
-                                <div class="alert-icon ${prioridad}">
-                                    <i class="${icon}"></i>
-                                </div>
-                                <h3 class="card-title">${escapeHtml(alerta.titulo || 'Alerta')}</h3>
-                            </div>
-                            <span class="card-time">${fecha}</span>
-                        </div>
-                        <div class="card-body">
-                            <p>${escapeHtml(alerta.mensaje || '')}</p>
-                        </div>
-                        <div class="card-footer">
-                            ${!alerta.vista ? `
-                                <button class="btn btn-sm btn-primary" onclick="marcarAlertaVista('${alerta.id}', this)">
-                                    <i class="fas fa-check"></i> Marcar como leída
-                                </button>` 
-                            : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            // Actualizar el DOM de una sola vez
-            container.innerHTML = html;
-            
-            // Reproducir sonido si hay alertas no leídas
-            if (hasUnread) {
-                playSound('alert');
-            }
-            
-            // Actualizar el título de la pestaña si hay alertas no leídas
-            updateTabNotification('alertas', hasUnread);
-        }
-
-        function displayMensajes(mensajes) {
-            const container = document.getElementById('mensajesContent');
-            if (!container) return;
-            
-            // Verificar si hay mensajes
-            const emptyState = document.getElementById('emptyMessages');
-            if (mensajes.length === 0) {
-                emptyState.style.display = 'flex';
-                container.innerHTML = '';
-                return;
-            }
-            
-            // Ocultar estado vacío
-            emptyState.style.display = 'none';
-            
-            // Crear lista de mensajes
-            let html = '';
-            
-            // Agrupar mensajes por fecha
-            const mensajesPorFecha = groupByDate(mensajes);
-            
-            // Ordenar fechas (más recientes primero)
-            const fechas = Object.keys(mensajesPorFecha).sort((a, b) => new Date(b) - new Date(a));
-            
-            fechas.forEach(fecha => {
-                const mensajesDia = mensajesPorFecha[fecha];
-                
-                // Encabezado de fecha
-                html += `
-                    <div class="date-header">
-                        <span>${formatDateHeader(fecha)}</span>
-                    </div>
-                `;
-                
-                // Mensajes del día
-                mensajesDia.forEach(mensaje => {
-                    const esRemitente = mensaje.remitente_id === parseInt(localStorage.getItem('cuidador_id') || '0');
-                    const nombre = esRemitente ? 'Tú' : (mensaje.remitente_nombre || 'Sistema');
-                    const avatar = esRemitente ? '👤' : '🤖';
-                    
-                    html += `
-                        <div class="card mensaje ${esRemitente ? 'sent' : 'received'}" data-id="${mensaje.id}">
-                            <div class="message-avatar">${avatar}</div>
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <span class="message-sender">${escapeHtml(nombre)}</span>
-                                    <span class="message-time">${formatTime(mensaje.fecha)}</span>
-                                </div>
-                                <div class="message-text">${escapeHtml(mensaje.contenido || '')}</div>
-                            </div>
-                        </div>
-                    `;
-                });
-            });
-            
-            // Actualizar el DOM de una sola vez
-            container.innerHTML = html;
-            
-            // Desplazarse al final de los mensajes
-            container.scrollTop = container.scrollHeight;
-        }
-
-        async function marcarAlertaVista(id, button) {
-            if (!id) return;
-            
-            try {
-                const response = await fetch(`/api/alertas/${id}/marcar-vista/`, {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    // Actualizar la interfaz sin recargar todo
-                    const alertaCard = button.closest('.card');
-                    if (alertaCard) {
-                        alertaCard.classList.remove('unread');
-                        button.remove();
-                        
-                        // Actualizar el contador de notificaciones
-                        updateTabNotification('alertas', document.querySelectorAll('.alerta.unread').length > 0);
-                    }
-                } else {
-                    const data = await response.json();
-                    throw new Error(data.detail || 'Error al actualizar la alerta');
-                }
-            } catch (error) {
-                console.error('Error marcando alerta como vista:', error);
-                showError('Error al actualizar la alerta');
-            }
-        }
-
-        function showNuevoMensaje() {
-            const modal = document.getElementById('mensajeModal');
-            modal.style.display = 'flex';
-            
-            // Enfocar el campo de texto después de la animación
-            setTimeout(() => {
-                document.getElementById('mensaje').focus();
-            }, 100);
-        }
-
-        function hideNuevoMensaje() {
-            const modal = document.getElementById('mensajeModal');
-            modal.style.animation = 'fadeOut 0.2s ease-out';
-            
-            setTimeout(() => {
-                modal.style.display = 'none';
-                modal.style.animation = '';
-                document.getElementById('mensajeForm').reset();
-            }, 200);
-        }
-
-        async function handleEnviarMensaje(e) {
-            e.preventDefault();
-            
-            const form = e.target;
-            const mensajeInput = form.querySelector('#mensaje');
-            const mensaje = mensajeInput.value.trim();
-            const interrumpirRadar = form.querySelector('#interrumpirRadar').checked;
-
-            // Validación
-            if (!mensaje) {
-                showError('Por favor ingresa un mensaje');
-                mensajeInput.classList.add('shake');
-                setTimeout(() => mensajeInput.classList.remove('shake'), 500);
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/enviar-mensaje/', {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        mensaje: mensaje,
-                        interrumpir_radar: interrumpirRadar,
-                        sesion: sesionActivaId
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (response.ok && data.estado === 'ok') {
-                    showSuccess('Mensaje enviado correctamente');
-                    hideNuevoMensaje();
-                    loadMensajes();
-                } else {
-                    throw new Error(data.mensaje || 'Error al enviar el mensaje');
-                }
-                } catch (error) {
-                    console.error('Error al enviar mensaje:', error);
-                    showError(error.message || 'Error de conexión al enviar el mensaje');
-                }
-        };
-
-        async function reanudarRadar() {
-            try {
-                if (!sesionActivaId) {
-                    showError('No hay una sesión activa');
-                    return;
-                }
-                
-                const response = await fetch('/api/reanudar-radar/', {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        sesion_id: sesionActivaId
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok && data.estado === 'ok') {
-                    showSuccess('El radar se ha reanudado correctamente');
-                } else {
-                    throw new Error(data.mensaje || 'Error al reanudar el radar');
-                }
-            } catch (error) {
-                console.error('Error al reanudar el radar:', error);
-                showError(error.message || 'Error de conexión al reanudar el radar');
-            }
-        }
-
-            audio.volume = 0.3; // Volumen más bajo
+            audio = new Audio(`/static/sounds/${type}.mp3`);
+            audio.volume = 0.3;
             audio.load();
-            audio.onerror = () => console.log('No se pudo cargar el sonido');
-
-        function navigate(path) {
-            // Animación de salida antes de navegar
-            document.querySelector('.container').style.animation = 'fadeOut 0.3s ease-out forwards';
-            setTimeout(() => window.location.href = path, 300);
+            audio.play().catch(e => console.warn('No se pudo reproducir el sonido:', e));
+        } catch (e) {
+            console.warn('Error al reproducir el sonido:', e);
         }
+    }
 
-        function logout() {
-            showConfirmation(
-                'Cerrar sesión', 
-                '¿Estás seguro de que deseas cerrar la sesión del cuidador?',
-                () => {
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('cuidador_id');
-                    localStorage.removeItem('nombre');
-                    window.location.href = '/login_cuidador/';
-                }
-            );
+    // === Navegación y logout ===
+    function navigate(path) {
+        const container = document.querySelector('.container');
+        container.style.animation = 'fadeOut 0.3s ease-out forwards';
+        setTimeout(() => window.location.href = path, 300);
+    }
+
+    function showConfirmation(title, message, callback) {
+        if (confirm(`${title}\n\n${message}`)) {
+            callback();
         }
+    }
 
-        // Cargar datos al iniciar
-        document.addEventListener('DOMContentLoaded', function() {
-            // Iniciar animación de carga
-            const container = document.querySelector('.container');
-            container.style.opacity = '0';
-            container.style.transform = 'translateY(20px)';
-            
-            // Cargar datos
-            Promise.all([
-                obtenerSesionActiva(),
-                loadAlertas(),
-                loadMensajes()
-            ]).then(() => {
-                // Mostrar contenido con animación
-                container.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                container.style.opacity = '1';
-                container.style.transform = 'translateY(0)';
-                
-                // Configurar actualización periódica
-                setInterval(loadAlertas, 30000); // Actualizar alertas cada 30 segundos
-                setInterval(loadMensajes, 60000); // Actualizar mensajes cada minuto
-            }).catch(error => {
-                console.error('Error inicializando la aplicación:', error);
-                showError('Error al cargar los datos iniciales');
-            });
-            
-            // Configurar el formulario
+    function logout() {
+        showConfirmation(
+            'Cerrar sesión',
+            '¿Estás seguro de que deseas cerrar la sesión del cuidador?',
+            () => {
+                localStorage.removeItem('token');
+                localStorage.removeItem('cuidador_id');
+                localStorage.removeItem('nombre');
+                window.location.href = '/login_cuidador/';
+            }
+        );
+    }
+
+    // === Carga inicial ===
+    document.addEventListener('DOMContentLoaded', async () => {
+        const container = document.querySelector('.container');
+        container.style.opacity = '0';
+        container.style.transform = 'translateY(20px)';
+
+        try {
+            await obtenerSesionActiva();
+            await Promise.all([loadAlertas(), loadMensajes()]);
+
+            container.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            container.style.opacity = '1';
+            container.style.transform = 'translateY(0)';
+
+            // Actualización automática
+            setInterval(loadAlertas, 30000);
+            setInterval(loadMensajes, 60000);
+
+            // Formulario
             document.getElementById('mensajeForm').addEventListener('submit', handleEnviarMensaje);
-            
-            // Configurar eventos para el teclado
-            document.addEventListener('keydown', function(e) {
-                // Cerrar modal con ESC
+
+            // ESC para cerrar modal
+            document.addEventListener('keydown', e => {
                 if (e.key === 'Escape' && document.getElementById('mensajeModal').style.display === 'flex') {
                     hideNuevoMensaje();
                 }
             });
-        });
 
-        async function obtenerSesionActiva() {
-            try {
-                const res = await fetch('/api/paciente-actual/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                const data = await res.json();
-                
-                if (res.ok && !data.mensaje) {
-                    sesionActivaId = data.id;
-                    sesionActivaNombre = `${data.paciente?.nombre || ''} ${data.paciente?.apellido || ''}`.trim();
-                    
-                    // Actualizar la interfaz si es necesario
-                    const pacienteElement = document.getElementById('paciente-actual');
-                    if (pacienteElement) {
-                        pacienteElement.textContent = sesionActivaNombre || 'Ningún paciente activo';
-                    }
-                    
-                    return data;
-                } else {
-                    sesionActivaId = null;
-                    sesionActivaNombre = null;
-                    throw new Error(data.mensaje || 'No hay sesión activa');
-                }
-            } catch (error) {
-                console.error('Error obteniendo sesión activa:', error);
+        } catch (error) {
+            console.error('Error inicializando:', error);
+            showError('Error al cargar los datos iniciales');
+        }
+    });
+
+    // === API y datos ===
+    async function obtenerSesionActiva() {
+        try {
+            const res = await fetch('/api/paciente-actual/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            const data = await res.json();
+
+            if (res.ok && !data.mensaje && data.id) {
+                sesionActivaId = data.id;
+                sesionActivaNombre = `${data.paciente?.nombre || ''} ${data.paciente?.apellido || ''}`.trim();
+                const el = document.getElementById('paciente-actual');
+                if (el) el.textContent = sesionActivaNombre || 'Paciente actual';
+                return data;
+            } else {
                 sesionActivaId = null;
                 sesionActivaNombre = null;
-                throw error;
+                throw new Error(data.mensaje || 'No hay sesión activa');
             }
+        } catch (error) {
+            console.error('Error sesión:', error);
+            sesionActivaId = null;
+            sesionActivaNombre = null;
+            throw error;
         }
+    }
 
-        function cambiarTab(tab) {
-            // Animación de transición entre pestañas
-            const activeTab = document.querySelector('.tab.active');
-            const activeContent = document.querySelector('.content.active');
-            
-            if (activeTab && activeTab.onclick.toString().includes(tab)) return;
-            
-            // Desactivar pestaña actual
-            if (activeTab) activeTab.classList.remove('active');
-            if (activeContent) {
-                activeContent.style.animation = 'fadeOut 0.2s ease-out forwards';
-                setTimeout(() => {
-                    activeContent.classList.remove('active');
-                    activeContent.style.animation = '';
-                }, 200);
-            }
-            
-            // Activar nueva pestaña
-            const newTab = document.querySelector(`.tab[onclick*="${tab}"]`);
-            const newContent = document.getElementById(tab);
-            
-            if (newTab && newContent) {
-                newTab.classList.add('active');
-                newContent.style.display = 'block';
-                setTimeout(() => {
-                    newContent.style.animation = 'fadeIn 0.3s ease-out';
-                    newContent.classList.add('active');
-                }, 10);
-                
-                // Forzar actualización del contenido al cambiar de pestaña
-                if (tab === 'alertas') loadAlertas();
-                else if (tab === 'mensajes') loadMensajes();
-            }
-        }
+    function cambiarTab(tab) {
+        const activeTab = document.querySelector('.tab.active');
+        const activeContent = document.querySelector('.content.active');
 
-        async function loadAlertas() {
-            try {
-                const response = await fetch('/api/alertas/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                
-                if (!response.ok) throw new Error('Error en la respuesta del servidor');
-                
-                const data = await response.json();
-                displayAlertas(data);
-                return data;
-            } catch (error) {
-                console.error('Error cargando alertas:', error);
-                showError('Error al cargar las alertas');
-                throw error;
-            }
-        }
+        if (activeTab && activeTab.onclick.toString().includes(tab)) return;
 
-        async function loadMensajes() {
-            try {
-                const response = await fetch('/api/mensajes/', {
-                    headers: { 'Authorization': `Token ${token}` }
-                });
-                
-                if (!response.ok) throw new Error('Error en la respuesta del servidor');
-                
-                const data = await response.json();
-                displayMensajes(data);
-                return data;
-            } catch (error) {
-                console.error('Error cargando mensajes:', error);
-                showError('Error al cargar los mensajes');
-                throw error;
-            }
-        }
-
-        function displayAlertas(alertas) {
-            const container = document.getElementById('alertasContent');
-            if (!container) return;
-            
-            // Verificar si hay alertas
-            const emptyState = document.getElementById('emptyAlerts');
-            if (alertas.length === 0) {
-                emptyState.style.display = 'flex';
-                container.innerHTML = '';
-                return;
-            }
-            
-            // Ocultar estado vacío
-            emptyState.style.display = 'none';
-            
-            // Crear lista de alertas
-            let html = '';
-            let hasUnread = false;
-            
-            // Ordenar alertas por fecha (más recientes primero)
-            alertas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-            
-            alertas.forEach(alerta => {
-                if (!alerta.vista) hasUnread = true;
-                
-                const fecha = formatDate(alerta.fecha);
-                const prioridad = alerta.prioridad || 'media';
-                const icon = getAlertIcon(prioridad);
-                
-                html += `
-                    <div class="card alerta ${!alerta.vista ? 'unread' : ''}" data-id="${alerta.id}">
-                        <div class="card-header">
-                            <div class="d-flex align-items-center">
-                                <div class="alert-icon ${prioridad}">
-                                    <i class="${icon}"></i>
-                                </div>
-                                <h3 class="card-title">${escapeHtml(alerta.titulo || 'Alerta')}</h3>
-                            </div>
-                            <span class="card-time">${fecha}</span>
-                        </div>
-                        <div class="card-body">
-                            <p>${escapeHtml(alerta.mensaje || '')}</p>
-                        </div>
-                        <div class="card-footer">
-                            ${!alerta.vista ? `
-                                <button class="btn btn-sm btn-primary" onclick="marcarAlertaVista('${alerta.id}', this)">
-                                    <i class="fas fa-check"></i> Marcar como leída
-                                </button>` 
-                            : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            // Actualizar el DOM de una sola vez
-            container.innerHTML = html;
-            
-            // Reproducir sonido si hay alertas no leídas
-            if (hasUnread) {
-                playSound('alert');
-            }
-            
-            // Actualizar el título de la pestaña si hay alertas no leídas
-            updateTabNotification('alertas', hasUnread);
-        }
-
-        function displayMensajes(mensajes) {
-            const container = document.getElementById('mensajesContent');
-            if (!container) return;
-            
-            // Verificar si hay mensajes
-            const emptyState = document.getElementById('emptyMessages');
-            if (mensajes.length === 0) {
-                emptyState.style.display = 'flex';
-                container.innerHTML = '';
-                return;
-            }
-            
-            // Ocultar estado vacío
-            emptyState.style.display = 'none';
-            
-            // Crear lista de mensajes
-            let html = '';
-            
-            // Agrupar mensajes por fecha
-            const mensajesPorFecha = groupByDate(mensajes);
-            
-            // Ordenar fechas (más recientes primero)
-            const fechas = Object.keys(mensajesPorFecha).sort((a, b) => new Date(b) - new Date(a));
-            
-            fechas.forEach(fecha => {
-                const mensajesDia = mensajesPorFecha[fecha];
-                
-                // Encabezado de fecha
-                html += `
-                    <div class="date-header">
-                        <span>${formatDateHeader(fecha)}</span>
-                    </div>
-                `;
-                
-                // Mensajes del día
-                mensajesDia.forEach(mensaje => {
-                    const esRemitente = mensaje.remitente_id === parseInt(localStorage.getItem('cuidador_id') || '0');
-                    const nombre = esRemitente ? 'Tú' : (mensaje.remitente_nombre || 'Sistema');
-                    const avatar = esRemitente ? '👤' : '🤖';
-                    
-                    html += `
-                        <div class="card mensaje ${esRemitente ? 'sent' : 'received'}" data-id="${mensaje.id}">
-                            <div class="message-avatar">${avatar}</div>
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <span class="message-sender">${escapeHtml(nombre)}</span>
-                                    <span class="message-time">${formatTime(mensaje.fecha)}</span>
-                                </div>
-                                <div class="message-text">${escapeHtml(mensaje.contenido || '')}</div>
-                            </div>
-                        </div>
-                    `;
-                });
-            });
-            
-            // Actualizar el DOM de una sola vez
-            container.innerHTML = html;
-            
-            // Desplazarse al final de los mensajes
-            container.scrollTop = container.scrollHeight;
-        }
-
-        async function marcarAlertaVista(id, button) {
-            if (!id) return;
-            
-            try {
-                const response = await fetch(`/api/alertas/${id}/marcar-vista/`, {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    // Actualizar la interfaz sin recargar todo
-                    const alertaCard = button.closest('.card');
-                    if (alertaCard) {
-                        alertaCard.classList.remove('unread');
-                        button.remove();
-                        
-                        // Actualizar el contador de notificaciones
-                        updateTabNotification('alertas', document.querySelectorAll('.alerta.unread').length > 0);
-                    }
-                } else {
-                    const data = await response.json();
-                    throw new Error(data.detail || 'Error al actualizar la alerta');
-                }
-            } catch (error) {
-                console.error('Error marcando alerta como vista:', error);
-                showError('Error al actualizar la alerta');
-            }
-        }
-
-        function showNuevoMensaje() {
-            const modal = document.getElementById('mensajeModal');
-            modal.style.display = 'flex';
-            
-            // Enfocar el campo de texto después de la animación
+        if (activeTab) activeTab.classList.remove('active');
+        if (activeContent) {
+            activeContent.style.animation = 'fadeOut 0.2s ease-out forwards';
             setTimeout(() => {
-                document.getElementById('mensaje').focus();
-            }, 100);
-        }
-
-        function hideNuevoMensaje() {
-            const modal = document.getElementById('mensajeModal');
-            modal.style.animation = 'fadeOut 0.2s ease-out';
-            
-            setTimeout(() => {
-                modal.style.display = 'none';
-                modal.style.animation = '';
-                document.getElementById('mensajeForm').reset();
+                activeContent.classList.remove('active');
+                activeContent.style.animation = '';
             }, 200);
         }
 
-        async function handleEnviarMensaje(e) {
-            e.preventDefault();
-            
-            const form = e.target;
-            const mensajeInput = form.querySelector('#mensaje');
-            const mensaje = mensajeInput.value.trim();
-            const interrumpirRadar = form.querySelector('#interrumpirRadar').checked;
+        const newTab = document.querySelector(`.tab[onclick*="${tab}"]`);
+        const newContent = document.getElementById(tab);
 
-            // Validación
-            if (!mensaje) {
-                showError('Por favor ingresa un mensaje');
-                mensajeInput.classList.add('shake');
-                setTimeout(() => mensajeInput.classList.remove('shake'), 500);
-                return;
+        if (newTab && newContent) {
+            newTab.classList.add('active');
+            newContent.style.display = 'block';
+            setTimeout(() => {
+                newContent.style.animation = 'fadeIn 0.3s ease-out';
+                newContent.classList.add('active');
+            }, 10);
+
+            if (tab === 'alertas') loadAlertas();
+            else if (tab === 'mensajes') loadMensajes();
+        }
+    }
+
+    async function loadAlertas() {
+        try {
+            const response = await fetch('/api/alertas/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            if (!response.ok) throw new Error('Error en el servidor');
+            const data = await response.json();
+            displayAlertas(data);
+        } catch (error) {
+            console.error('Error cargando alertas:', error);
+            showError('Error al cargar las alertas');
+        }
+    }
+
+    async function loadMensajes() {
+        try {
+            const response = await fetch('/api/mensajes/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            if (!response.ok) throw new Error('Error en el servidor');
+            const data = await response.json();
+            displayMensajes(data);
+        } catch (error) {
+            console.error('Error cargando mensajes:', error);
+            showError('Error al cargar los mensajes');
+        }
+    }
+
+    function displayAlertas(alertas) {
+        const container = document.getElementById('alertasContent');
+        const emptyState = document.getElementById('emptyAlerts');
+        if (!container) return;
+
+        if (alertas.length === 0) {
+            emptyState.style.display = 'flex';
+            container.innerHTML = '';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+        let html = '';
+        let hasUnread = false;
+
+        alertas.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+        alertas.forEach(alerta => {
+            if (!alerta.vista) hasUnread = true;
+            const fecha = formatDate(alerta.fecha);
+            const prioridad = (alerta.prioridad || 'media').toLowerCase();
+            const icon = getAlertIcon(prioridad);
+
+            html += `
+                <div class="card alerta ${!alerta.vista ? 'unread' : ''}" data-id="${alerta.id}">
+                    <div class="card-header">
+                        <div class="d-flex align-items-center">
+                            <div class="alert-icon ${prioridad}">
+                                <i class="${icon}"></i>
+                            </div>
+                            <h3 class="card-title">${escapeHtml(alerta.titulo || 'Alerta')}</h3>
+                        </div>
+                        <span class="card-time">${fecha}</span>
+                    </div>
+                    <div class="card-body">
+                        <p>${escapeHtml(alerta.mensaje || '')}</p>
+                    </div>
+                    <div class="card-footer">
+                        ${!alerta.vista ? `
+                            <button class="btn btn-sm btn-primary" onclick="marcarAlertaVista('${alerta.id}', this)">
+                                <i class="fas fa-check"></i> Marcar como leída
+                            </button>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        if (hasUnread) playSound('alert');
+        updateTabNotification('alertas', hasUnread);
+    }
+
+    function displayMensajes(mensajes) {
+        const container = document.getElementById('mensajesContent');
+        const emptyState = document.getElementById('emptyMessages');
+        if (!container) return;
+
+        if (mensajes.length === 0) {
+            emptyState.style.display = 'flex';
+            container.innerHTML = '';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+        let html = '';
+        const mensajesPorFecha = groupByDate(mensajes);
+        const fechas = Object.keys(mensajesPorFecha).sort((a, b) => new Date(b) - new Date(a));
+
+        fechas.forEach(fecha => {
+            html += `<div class="date-header"><span>${formatDateHeader(fecha)}</span></div>`;
+            mensajesPorFecha[fecha].forEach(mensaje => {
+                const esRemitente = mensaje.remitente_id === parseInt(localStorage.getItem('cuidador_id') || '0');
+                const nombre = esRemitente ? 'Tú' : (mensaje.remitente_nombre || 'Sistema');
+                const avatar = esRemitente ? 'Cuidador' : 'Sistema';
+
+                html += `
+                    <div class="card mensaje ${esRemitente ? 'sent' : 'received'}" data-id="${mensaje.id}">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-sender">${escapeHtml(nombre)}</span>
+                                <span class="message-time">${formatTime(mensaje.fecha)}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(mensaje.contenido || '')}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+        container.innerHTML = html;
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function marcarAlertaVista(id, button) {
+        if (!id) return;
+        try {
+            const response = await fetch(`/api/alertas/${id}/marcar-vista/`, {
+                method: 'POST',
+                headers: { 'Authorization': `Token ${token}`, 'Content-Type': 'application/json' }
+            });
+
+            if (response.ok) {
+                const card = button.closest('.card');
+                if (card) {
+                    card.classList.remove('unread');
+                    button.remove();
+                    updateTabNotification('alertas', document.querySelectorAll('.alerta.unread').length > 0);
+                }
+            } else {
+                const data = await response.json();
+                throw new Error(data.detail || 'Error al marcar como leída');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Error al actualizar la alerta');
+        }
+    }
+
+    // === Modal y envío de mensaje ===
+    function showNuevoMensaje() {
+        const modal = document.getElementById('mensajeModal');
+        modal.style.display = 'flex';
+        setTimeout(() => document.getElementById('mensaje').focus(), 100);
+    }
+
+    function hideNuevoMensaje() {
+        const modal = document.getElementById('mensajeModal');
+        modal.style.animation = 'fadeOut 0.2s ease-out';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.style.animation = '';
+            document.getElementById('mensajeForm').reset();
+        }, 200);
+    }
+
+    async function handleEnviarMensaje(e) {
+        e.preventDefault();
+        const mensaje = document.getElementById('mensaje').value.trim();
+        const interrumpirRadar = document.getElementById('interrumpirRadar').checked;
+
+        if (!mensaje) {
+            showError('Escribe un mensaje');
+            const input = document.getElementById('mensaje');
+            input.classList.add('shake');
+            setTimeout(() => input.classList.remove('shake'), 500);
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/mensajes/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`
+                },
+                body: JSON.stringify({
+                    contenido: mensaje,
+                    interrumpir_radar: interrumpirRadar,
+                    sesion_id: sesionActivaId
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.detail || 'Error al enviar');
             }
 
-            try {
-                // Enviar el mensaje a través de la API
-                const response = await fetch('/api/mensajes/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Token ${token}`
-                    },
-                    body: JSON.stringify({
-                        contenido: mensaje,
-                        interrumpir_radar: interrumpirRadar,
-                        sesion_id: sesionActivaId
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || 'Error al enviar el mensaje');
-                }
-
-                // Si se solicitó interrumpir el radar, enviar comando
-                if (interrumpirRadar) {
-                    await fetch('/api/comandos/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Token ${token}`
-                        },
-                        body: JSON.stringify({
-                            sesion: sesionActivaId,
-                            comando: 'SHOW_MESSAGE',
-                            parametros: mensaje
-                        })
-                    });
-                }
-
-                showSuccess('Mensaje enviado correctamente');
-                hideNuevoMensaje();
-                await loadMensajes();
-            } catch (error) {
-                console.error('Error:', error);
-                showError(error.message || 'Error al enviar el mensaje');
-            }
-        };
-
-        async function reanudarRadar() {
-            try {
-                if (!sesionActivaId) {
-                    alert('No se encontró una sesión activa para enviar el comando.');
-                    return;
-                }
-                const ok = confirm('¿Reanudar radar en el OLED?');
-                if (!ok) return;
-                const resp = await fetch('/api/comandos/', {
+            if (interrumpirRadar) {
+                await fetch('/api/comandos/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1505,20 +1063,48 @@
                     },
                     body: JSON.stringify({
                         sesion: sesionActivaId,
-                        comando: 'RESUME_RADAR',
-                        parametros: ''
+                        comando: 'SHOW_MESSAGE',
+                        parametros: mensaje
                     })
                 });
-                if (!resp.ok) {
-                    const errData = await resp.json();
-                    throw new Error(errData?.error || 'Error al enviar la orden.');
-                }
-                alert('Se envió la orden para reanudar el radar.');
-            } catch (error) {
-                console.error('Error:', error);
-                alert('No se pudo enviar la orden.');
             }
+
+            showSuccess('Mensaje enviado');
+            hideNuevoMensaje();
+            loadMensajes();
+        } catch (error) {
+            console.error('Error:', error);
+            showError(error.message || 'Error de conexión');
         }
-    </script>
+    }
+
+    async function reanudarRadar() {
+        if (!sesionActivaId) {
+            showError('No hay sesión activa');
+            return;
+        }
+        if (!confirm('¿Reanudar radar en el OLED?')) return;
+
+        try {
+            const resp = await fetch('/api/comandos/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`
+                },
+                body: JSON.stringify({
+                    sesion: sesionActivaId,
+                    comando: 'RESUME_RADAR',
+                    parametros: ''
+                })
+            });
+            if (!resp.ok) throw new Error('Error del servidor');
+            showSuccess('Radar reanudado');
+        } catch (error) {
+            console.error('Error:', error);
+            showError('No se pudo reanudar el radar');
+        }
+    }
+</script>
 </body>
 </html>
