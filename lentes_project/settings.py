@@ -11,8 +11,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
+
 from decouple import config
 import dj_database_url
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -81,6 +83,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'lentes_project.wsgi.application'
 ASGI_APPLICATION = 'lentes_project.asgi.application'
 
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 default_db_url = 'sqlite:///' + os.path.join(BASE_DIR, 'db.sqlite3')
@@ -94,30 +97,19 @@ if 'postgres' in DATABASES['default']['ENGINE']:
 
 
 # --- REDIS PARA WEBSOCKETS (crea uno en Railway) ---
-REDIS_URL = config('REDIS_URL', default='redis://default:DKhVdNaWYONOBqSdxkqGMFgTYeodMlXz@mainline.proxy.rlwy.net:54949')
-
-# Parsear URL de Redis para channels_redis
-from urllib.parse import urlparse
-
-def parse_redis_url(url):
-    """Parsea la URL de Redis y retorna el formato correcto para channels_redis"""
-    parsed = urlparse(url)
-    # channels_redis acepta tupla (host, port, password) o URL string
-    if parsed.password:
-        return (parsed.hostname, parsed.port, parsed.password)
-    return (parsed.hostname, parsed.port)
-
-redis_host = parse_redis_url(REDIS_URL)
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [redis_host],
+            "hosts": [REDIS_URL],
             "capacity": 1500,
             "expiry": 10,
         },
     },
 }
+
+
 # --- REST FRAMEWORK ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -127,6 +119,8 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',  # ← TODAS PIDEN TOKEN
     ],
 }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -165,7 +159,9 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
