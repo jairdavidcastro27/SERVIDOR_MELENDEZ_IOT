@@ -243,24 +243,63 @@
 </div>
 
 <script>
+    // Variables globales
     const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/login_cuidador/';
-
     let sesionActivaId = null;
+    
+    // Verificar autenticación
+    if (!token) {
+        window.location.href = '/login_cuidador/';
+    }
 
     // Cargar mensajes al inicio
     document.addEventListener('DOMContentLoaded', () => {
-        obtenerSesionActiva().then(() => loadMensajes());
-        setInterval(loadMensajes, 30000); // Actualizar cada 30 seg
-        document.getElementById('mensajeForm').addEventListener('submit', handleEnviarMensaje);
+        if (!token) {
+            window.location.href = '/login_cuidador/';
+            return;
+        }
+
+        obtenerSesionActiva()
+            .then(() => loadMensajes())
+            .catch(error => {
+                console.error('Error al cargar datos iniciales:', error);
+                alert('Error al cargar los datos. Por favor, recarga la página.');
+            });
+        
+        // Actualizar mensajes cada 30 segundos
+        setInterval(loadMensajes, 30000);
+        
+        // Configurar manejador de formulario
+        const form = document.getElementById('mensajeForm');
+        if (form) {
+            form.addEventListener('submit', handleEnviarMensaje);
+        }
     });
 
     async function obtenerSesionActiva() {
         try {
-            const res = await fetch('/api/paciente-activo/', { headers: { 'Authorization': `Token ${token}` } });
-            const data = await res.json();
-            if (res.ok && data.id) sesionActivaId = data.id;
-        } catch (e) { console.error(e); }
+            const response = await fetch('/api/paciente-actual/', { 
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                } 
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al obtener la sesión activa');
+            }
+            
+            const data = await response.json();
+            if (data && data.id) {
+                sesionActivaId = data.id;
+                return data;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error en obtenerSesionActiva:', error);
+            throw error;
+        }
     }
 
     function showNuevoMensaje() {
@@ -276,17 +315,30 @@
 
     async function loadMensajes() {
         try {
-            const res = await fetch('/api/mensajes/', { headers: { 'Authorization': `Token ${token}` } });
-            const mensajes = await res.json();
+            const response = await fetch('/api/mensajes/', { 
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                } 
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al cargar los mensajes');
+            }
+            
+            const mensajes = await response.json();
             displayMensajes(mensajes);
-        } catch (e) { console.error(e); }
+        } catch (error) {
+            console.error('Error en loadMensajes:', error);
+            throw error;
+        }
     }
 
     function displayMensajes(mensajes) {
         const container = document.getElementById('mensajesContent');
         if (mensajes.length === 0) {
             container.innerHTML = `<div class="empty"><i class="fas fa-inbox"></i><p>No hay mensajes aún.</p></div>`;
-            return;
         }
 
         let html = '';
@@ -310,42 +362,79 @@
 
     async function handleEnviarMensaje(e) {
         e.preventDefault();
-        const mensaje = document.getElementById('mensaje').value.trim();
+        
+        const mensajeInput = document.getElementById('mensaje');
+        const mensaje = mensajeInput.value.trim();
         const interrumpir = document.getElementById('interrumpirRadar').checked;
 
-        if (!mensaje) return alert('Escribe un mensaje');
+        if (!mensaje) {
+            alert('Por favor, escribe un mensaje');
+            mensajeInput.focus();
+            return;
+        }
 
         try {
-            const res = await fetch('/api/mensajes/', {
+            const response = await fetch('/api/mensajes/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${token}` },
-                body: JSON.stringify({ contenido: mensaje, interrumpir_radar: interrumpir, sesion_id: sesionActivaId })
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Token ${token}` 
+                },
+                body: JSON.stringify({ 
+                    contenido: mensaje, 
+                    interrumpir_radar: interrumpir, 
+                    sesion_id: sesionActivaId 
+                })
             });
 
-            if (!res.ok) throw new Error('Error al enviar');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al enviar el mensaje');
+            }
 
+            // Limpiar el formulario y recargar mensajes
             hideNuevoMensaje();
-            loadMensajes();
-            alert('Mensaje enviado');
-        } catch (e) {
-            alert('Error: ' + e.message);
+            await loadMensajes();
+            
+        } catch (error) {
+            console.error('Error en handleEnviarMensaje:', error);
+            alert('Error al enviar el mensaje: ' + (error.message || 'Error desconocido'));
         }
     }
 
     async function reanudarRadar() {
-        if (!sesionActivaId) return alert('No hay sesión activa');
-        if (!confirm('¿Reanudar radar en el OLED?')) return;
+        if (!sesionActivaId) {
+            alert('No hay una sesión activa. No se puede reanudar el radar.');
+            return;
+        }
+        
+        if (!confirm('¿Estás seguro de que deseas reanudar el radar en el OLED?')) {
+            return;
+        }
 
         try {
-            const res = await fetch('/api/comandos/', {
+            const response = await fetch('/api/comandos/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Token ${token}` },
-                body: JSON.stringify({ sesion: sesionActivaId, comando: 'RESUME_RADAR', parametros: '' })
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Token ${token}` 
+                },
+                body: JSON.stringify({ 
+                    sesion: sesionActivaId, 
+                    comando: 'RESUME_RADAR', 
+                    parametros: '' 
+                })
             });
-            if (res.ok) alert('Radar reanudado');
-            else throw new Error();
-        } catch (e) {
-            alert('Error al reanudar radar');
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al enviar el comando');
+            }
+            
+            alert('El radar se ha reanudado correctamente');
+        } catch (error) {
+            console.error('Error en reanudarRadar:', error);
+            alert('Error al reanudar el radar: ' + (error.message || 'Error desconocido'));
         }
     }
 
