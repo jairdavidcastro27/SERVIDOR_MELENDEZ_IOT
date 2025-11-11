@@ -1,82 +1,335 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Paciente</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 400px;
-            margin: 50px auto;
-            padding: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        input {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .error {
-            color: red;
-            margin-top: 10px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login Paciente</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #06b6d4;
+      --primary-dark: #0891b2;
+      --success: #10b981;
+      --danger: #ef4444;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-600: #4b5563;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --radius: 12px;
+      --shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: var(--gray-800);
+    }
+
+    .login-container {
+      background: white;
+      padding: 2.5rem;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 400px;
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .logo svg {
+      width: 60px;
+      height: 60px;
+      color: var(--primary);
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      color: var(--gray-900);
+      font-size: 1.5rem;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: var(--gray-600);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: var(--gray-600);
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      background: white;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+    }
+
+    input.error {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+    }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    .error-msg.show {
+      display: block;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.875rem;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 1rem;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    button:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: var(--gray-200);
+      color: var(--gray-600);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .loading {
+      width: 16px;
+      height: 16px;
+      border: 2px solid transparent;
+      border-top: 2px solid white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      color: var(--gray-600);
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .login-container {
+        padding: 2rem 1.5rem;
+      }
+      h2 {
+        font-size: 1.4rem;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h2>Iniciar sesión como Paciente</h2>
-    <div id="error" class="error"></div>
-    <div class="form-group">
-        <label for="dni">DNI:</label>
-        <input type="text" id="dni" required>
-    </div>
-    <div class="form-group">
-        <label for="cuidador_id">ID Cuidador:</label>
-        <input type="text" id="cuidador_id" required>
-    </div>
-    <button onclick="login()">Iniciar sesión</button>
 
-    <script>
-        async function login() {
-            const dni = document.getElementById('dni').value;
-            const cuidador_id = document.getElementById('cuidador_id').value;
-            
-            try {
-                const response = await fetch('/api/iniciar-sesion/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        dni: dni,
-                        cuidador_id: cuidador_id
-                    })
-                });
+  <div class="login-container">
+    <div style="margin-bottom: 0.75rem;">
+      <button onclick="window.history.back()" style="background:#e5e7eb; color:#111827; border:none; border-radius:8px; padding:8px 12px; cursor:pointer;">Regresar</button>
+      <button onclick="window.location.href='/login_cuidador/'" style="background:#e5e7eb; color:#111827; border:none; border-radius:8px; padding:8px 12px; cursor:pointer; margin-left:6px;">Ir a Login Cuidador</button>
+    </div>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"></path>
+        <path d="M12 7h.01"></path>
+        <path d="M12 11h.01"></path>
+        <path d="M12 15h.01"></path>
+      </svg>
+    </div>
+    <h2>Iniciar Sesión</h2>
+    <p class="subtitle">Acceso para pacientes</p>
 
-                const data = await response.json();
-                
-                if (response.ok) {
-                    // Guardar información de la sesión si es necesario
-                    localStorage.setItem('sesion_paciente', JSON.stringify(data));
-                    // Redirigir al monitor
-                    window.location.href = '/monitor/';
-                } else {
-                    document.getElementById('error').textContent = data.error || 'Error al iniciar sesión';
-                }
-            } catch (error) {
-                document.getElementById('error').textContent = 'Error de conexión';
-            }
+    <div class="form-group">
+      <label for="dni">DNI</label>
+      <input type="text" id="dni" placeholder="Ej: 12345678" maxlength="8" inputmode="numeric" required />
+      <div class="error-msg" id="dni-error">Ingresa un DNI válido</div>
+    </div>
+
+    <div class="form-group">
+      <label for="cuidador_id">ID del Cuidador</label>
+      <input type="text" id="cuidador_id" placeholder="Ej: 1" required />
+      <div class="error-msg" id="cuidador-error">Ingresa el ID del cuidador</div>
+    </div>
+
+    <div class="error-msg" id="login-error" style="text-align:center; margin-top:1rem;"></div>
+
+    <button id="login-btn" onclick="login()">
+      <span id="btn-text">Iniciar Sesión</span>
+      <div id="btn-loading" class="loading" style="display:none;"></div>
+    </button>
+
+    <div class="footer">
+      © 2025 Sistema de Monitoreo
+    </div>
+  </div>
+
+  <script>
+    const dniInput = document.getElementById('dni');
+    const cuidadorInput = document.getElementById('cuidador_id');
+    const loginBtn = document.getElementById('login-btn');
+    const btnText = document.getElementById('btn-text');
+    const btnLoading = document.getElementById('btn-loading');
+    const loginError = document.getElementById('login-error');
+
+    // Validación en tiempo real
+    function validateField(input, errorId, message) {
+      const error = document.getElementById(errorId);
+      const value = input.value.trim();
+      if (!value) {
+        input.classList.add('error');
+        error.textContent = message;
+        error.classList.add('show');
+        return false;
+      } else {
+        input.classList.remove('error');
+        error.classList.remove('show');
+        return true;
+      }
+    }
+
+    // Validar DNI (solo números, 8 dígitos)
+    function validateDNI() {
+      const value = dniInput.value.trim();
+      const error = document.getElementById('dni-error');
+      if (!value) {
+        dniInput.classList.add('error');
+        error.textContent = 'Ingresa tu DNI';
+        error.classList.add('show');
+        return false;
+      } else if (!/^\d{8}$/.test(value)) {
+        dniInput.classList.add('error');
+        error.textContent = 'DNI debe tener 8 dígitos';
+        error.classList.add('show');
+        return false;
+      } else {
+        dniInput.classList.remove('error');
+        error.classList.remove('show');
+        return true;
+      }
+    }
+
+    dniInput.addEventListener('blur', validateDNI);
+    dniInput.addEventListener('input', () => {
+      dniInput.value = dniInput.value.replace(/\D/g, '').slice(0, 8);
+    });
+
+    cuidadorInput.addEventListener('blur', () => validateField(cuidadorInput, 'cuidador-error', 'Ingresa el ID del cuidador'));
+
+    // Login
+    async function login() {
+      const dni = dniInput.value.trim();
+      const cuidador_id = cuidadorInput.value.trim();
+
+      const validDNI = validateDNI();
+      const validCuidador = validateField(cuidadorInput, 'cuidador-error', 'Ingresa el ID del cuidador');
+
+      if (!validDNI || !validCuidador) return;
+
+      // Mostrar loading
+      loginBtn.disabled = true;
+      btnText.style.display = 'none';
+      btnLoading.style.display = 'block';
+      loginError.classList.remove('show');
+
+      try {
+        const response = await fetch('/api/iniciar-sesion/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dni, cuidador_id })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Guardar sesión
+          localStorage.setItem('sesion_paciente', JSON.stringify(data));
+          // Redirigir
+          window.location.href = '/monitor/';
+        } else {
+          loginError.textContent = data.error || 'DNI o ID de cuidador incorrecto';
+          loginError.classList.add('show');
         }
-    </script>
+      } catch (err) {
+        loginError.textContent = 'Error de conexión. Intenta de nuevo.';
+        loginError.classList.add('show');
+      } finally {
+        loginBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+      }
+    }
+
+    // Enter para login
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
 </body>
 </html>

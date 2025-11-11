@@ -69,6 +69,19 @@
             background-color: #007bff;
             color: white;
         }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #111827;
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
         .form-group {
             margin-bottom: 15px;
         }
@@ -88,7 +101,13 @@
     <div class="container">
         <div class="header">
             <h1>Alertas y Mensajes</h1>
-            <button class="btn btn-primary" onclick="showNuevoMensaje()">Nuevo Mensaje</button>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="navigate('/monitor/')">Volver al Monitor</button>
+                <button class="btn btn-secondary" onclick="navigate('/pacientes/')">Pacientes</button>
+                <button class="btn btn-secondary" onclick="navigate('/sesiones/')">Sesiones</button>
+                <button class="btn btn-primary" onclick="showNuevoMensaje()">Nuevo Mensaje</button>
+                <button class="btn btn-danger" onclick="logout()">Cerrar sesión</button>
+            </div>
         </div>
 
         <div class="tabs">
@@ -114,9 +133,16 @@
                     <label for="mensaje">Mensaje:</label>
                     <textarea id="mensaje" required maxlength="128"></textarea>
                 </div>
+                <div class="form-group" style="display:flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="interrumpirRadar" />
+                    <label for="interrumpirRadar" style="margin:0;">Interrumpir radar en OLED mientras se muestra el mensaje</label>
+                </div>
                 <button type="submit" class="btn btn-primary">Enviar</button>
                 <button type="button" onclick="hideNuevoMensaje()" class="btn">Cancelar</button>
             </form>
+            <div style="margin-top:12px;">
+                <button class="btn" onclick="reanudarRadar()" title="Ordenar al dispositivo volver al radar">Reanudar radar</button>
+            </div>
         </div>
     </div>
 
@@ -127,11 +153,47 @@
         }
 
         const token = localStorage.getItem('token');
+        let sesionActivaId = null;
+        let sesionActivaNombre = null;
+
+        function navigate(path) {
+            window.location.href = path;
+        }
+
+        function logout() {
+            if (confirm('¿Cerrar sesión del cuidador?')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('cuidador_id');
+                localStorage.removeItem('nombre');
+                window.location.href = '/login_cuidador/';
+            }
+        }
 
         // Cargar datos al iniciar
-        window.onload = function() {
+        window.onload = async function() {
+            await obtenerSesionActiva();
             loadAlertas();
             loadMensajes();
+        }
+
+        async function obtenerSesionActiva() {
+            try {
+                const res = await fetch('/api/paciente-actual/', {
+                    headers: { 'Authorization': `Token ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok && !data.mensaje) {
+                    sesionActivaId = data.id;
+                    sesionActivaNombre = `${data.paciente?.nombre || ''} ${data.paciente?.apellido || ''}`.trim();
+                } else {
+                    sesionActivaId = null;
+                    sesionActivaNombre = null;
+                }
+            } catch (error) {
+                console.error('Error obteniendo sesión activa:', error);
+                sesionActivaId = null;
+                sesionActivaNombre = null;
+            }
         }
 
         function cambiarTab(tab) {
@@ -230,14 +292,20 @@
         document.getElementById('mensajeForm').onsubmit = async function(e) {
             e.preventDefault();
             
+            if (!sesionActivaId) {
+                alert('No hay sesión activa. Inicia una sesión para enviar mensajes al dispositivo.');
+                return;
+            }
+
             const mensaje = {
                 mensaje: document.getElementById('mensaje').value,
                 cuidador: localStorage.getItem('cuidador_id'),
-                sesion: document.querySelector('.sesion-activa')?.dataset?.id
+                sesion: sesionActivaId
             };
 
             try {
-                await fetch('/api/mensajes/', {
+                // 1) Guardar mensaje en la DB (histórico)
+                const respMsg = await fetch('/api/mensajes/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -246,12 +314,112 @@
                     body: JSON.stringify(mensaje)
                 });
 
+                if (!respMsg.ok) {
+                    const errData = await respMsg.json();
+                    throw new Error(errData?.error || 'Error al registrar el mensaje');
+                }
+
+                // 2) Opcional: interrumpir radar y mostrar el mensaje en OLED (vía comandos pendientes)
+                const interrumpir = document.getElementById('interrumpirRadar').checked;
+                if (interrumpir) {
+                    const confirmar = confirm('Esto pausará el radar del OLED para mostrar solo el mensaje. ¿Continuar?');
+                    if (confirmar) {
+                        // Crear comandos en cola para el ESP32
+                        // 2.1) Pausar/Interrumpir radar
+                        const respInterrupt = await fetch('/api/comandos/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Token ${token}`
+                            },
+                            body: JSON.stringify({
+                                sesion: sesionActivaId,
+                                comando: 'INTERRUPT_RADAR',
+                                parametros: ''
+                            })
+                        });
+                        if (!respInterrupt.ok) {
+                            const errData = await respInterrupt.json();
+                            throw new Error(errData?.error || 'Error al ordenar interrupción del radar');
+                        }
+                        // 2.2) Mostrar mensaje
+                        const respShow = await fetch('/api/comandos/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Token ${token}`
+                            },
+                            body: JSON.stringify({
+                                sesion: sesionActivaId,
+                                comando: 'SHOW_MESSAGE',
+                                parametros: mensaje.mensaje
+                            })
+                        });
+                        if (!respShow.ok) {
+                            const errData = await respShow.json();
+                            throw new Error(errData?.error || 'Error al enviar el mensaje al dispositivo');
+                        }
+                        alert('Mensaje enviado. El radar fue pausado para mostrarlo.');
+                    }
+                } else {
+                    // Si no se interrumpe, todavía se podría enviar un SHOW_MESSAGE sin pausar radar, según firmware.
+                    const respShow = await fetch('/api/comandos/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Token ${token}`
+                        },
+                        body: JSON.stringify({
+                            sesion: sesionActivaId,
+                            comando: 'SHOW_MESSAGE',
+                            parametros: mensaje.mensaje
+                        })
+                    });
+                    if (!respShow.ok) {
+                        const errData = await respShow.json();
+                        throw new Error(errData?.error || 'Error al enviar el mensaje al dispositivo');
+                    }
+                    alert('Mensaje enviado al dispositivo.');
+                }
+
                 hideNuevoMensaje();
                 loadMensajes();
             } catch (error) {
                 console.error('Error:', error);
+                alert(error.message || 'Error enviando mensaje.');
             }
         };
+
+        async function reanudarRadar() {
+            try {
+                if (!sesionActivaId) {
+                    alert('No se encontró una sesión activa para enviar el comando.');
+                    return;
+                }
+                const ok = confirm('¿Reanudar radar en el OLED?');
+                if (!ok) return;
+                const resp = await fetch('/api/comandos/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Token ${token}`
+                    },
+                    body: JSON.stringify({
+                        sesion: sesionActivaId,
+                        comando: 'RESUME_RADAR',
+                        parametros: ''
+                    })
+                });
+                if (!resp.ok) {
+                    const errData = await resp.json();
+                    throw new Error(errData?.error || 'Error al enviar la orden.');
+                }
+                alert('Se envió la orden para reanudar el radar.');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('No se pudo enviar la orden.');
+            }
+        }
     </script>
 </body>
 </html>

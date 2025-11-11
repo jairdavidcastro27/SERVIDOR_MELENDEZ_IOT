@@ -1,426 +1,537 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Sesiones</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .sesion-activa {
-            background-color: #e8f5e9;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f8f9fa;
-        }
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        .datos-sesion {
-            display: none;
-            margin-top: 20px;
-            padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-        }
-        .stats-container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 15px;
-        }
-        .stat-box {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid #dee2e6;
-        }
-        .stat-box h5 {
-            margin: 0 0 10px 0;
-            color: #0056b3;
-        }
-        .data-table {
-            width: 100%;
-            margin-top: 20px;
-            border-collapse: collapse;
-            background-color: white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .data-table th {
-            background-color: #007bff;
-            color: white;
-            padding: 12px;
-            text-align: left;
-        }
-        .data-table td {
-            padding: 10px;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .data-table tr:hover {
-            background-color: #f5f5f5;
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            font-style: italic;
-            color: #666;
-        }
-        .error-message {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
-        .chart-container {
-            margin-top: 20px;
-            padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestión de Sesiones</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --gray-100: #f8fafc;
+      --gray-200: #e2e8f0;
+      --gray-600: #475569;
+      --gray-800: #1e293b;
+      --radius: 10px;
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--gray-100);
+      color: var(--gray-800);
+      line-height: 1.6;
+      padding: 1rem;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: white;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+    }
+
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 1.25rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: white;
+      color: var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-sm {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+    }
+
+    /* Sesión Activa */
+    .sesion-activa {
+      background: linear-gradient(135deg, #d4edda, #c3e6cb);
+      padding: 1.5rem;
+      border-radius: var(--radius);
+      margin: 1.5rem;
+      border-left: 5px solid var(--success);
+    }
+
+    .sesion-activa h2 {
+      color: #155724;
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .sesion-activa p {
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    /* Tabla */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem;
+    }
+
+    th {
+      background: #f8fafc;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--gray-800);
+      border-bottom: 2px solid var(--gray-200);
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--gray-200);
+      font-size: 0.9rem;
+    }
+
+    tr:hover {
+      background: #f8fafc;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray-600);
+      font-style: italic;
+    }
+
+    /* Datos de sesión */
+    .datos-sesion {
+      margin: 1.5rem;
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      display: none;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-box {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--gray-200);
+    }
+
+    .stat-box h5 {
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+
+    .stat-box p {
+      margin: 0.25rem 0;
+      font-size: 0.9rem;
+    }
+
+    .chart-container {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .data-table {
+      width: 100%;
+      margin-top: 1rem;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .data-table th {
+      background: var(--primary);
+      color: white;
+      padding: 0.75rem;
+      text-align: left;
+    }
+
+    .data-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .data-table tr:hover {
+      background: #f1f5f9;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray-600);
+      font-style: italic;
+    }
+
+    .error-message {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 1rem;
+      border-radius: 6px;
+      margin: 1rem 0;
+      border-left: 4px solid var(--danger);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+      th, td {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+      }
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+      .data-table {
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .sesion-activa, .datos-sesion, table {
+        margin: 1rem;
+      }
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Gestión de Sesiones</h1>
-            <nav style="margin-bottom: 20px;">
-                <button onclick="window.location.href='/monitor/'" class="btn btn-primary">Volver al Monitor</button>
-            </nav>
-        </div>
 
-        <div id="sesionActiva" class="sesion-activa">
-            <h2>Sesión Activa</h2>
-            <div id="sesionActivaContent">
-                Cargando...
-            </div>
-        </div>
-
-        <h2>Histórico de Sesiones</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Paciente</th>
-                    <th>Inicio</th>
-                    <th>Fin</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="sesionesBody">
-            </tbody>
-        </table>
-
-        <div id="datosSesion" class="datos-sesion">
-            <h3>Datos de la Sesión</h3>
-            <div id="datosSesionContent"></div>
-        </div>
+  <div class="container">
+    <div class="header">
+      <h1>Gestión de Sesiones</h1>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="window.location.href='/monitor/'">Volver al Monitor</button>
+        <button class="btn btn-primary" onclick="window.location.href='/pacientes/'">Pacientes</button>
+        <button class="btn btn-primary" onclick="window.location.href='/alertas/'">Alertas</button>
+        <button class="btn btn-danger" onclick="logout()">Cerrar sesión</button>
+      </div>
     </div>
 
-    <script>
-        // Verificar autenticación
-        if (!localStorage.getItem('token')) {
-            window.location.href = '/login_cuidador/';
+    <!-- Sesión Activa -->
+    <div id="sesionActiva" class="sesion-activa">
+      <h2>Sesión Activa</h2>
+      <div id="sesionActivaContent" class="loading">Cargando...</div>
+    </div>
+
+    <!-- Histórico -->
+    <h2 style="margin: 1.5rem; font-size: 1.3rem; color: var(--gray-800);">Histórico de Sesiones</h2>
+    <table id="sesionesTable">
+      <thead>
+        <tr>
+          <th>Paciente</th>
+          <th>Inicio</th>
+          <th>Fin</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="sesionesBody">
+        <tr class="empty"><td colspan="5">Cargando sesiones...</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Datos de sesión -->
+    <div id="datosSesion" class="datos-sesion">
+      <h3>Datos de la Sesión</h3>
+      <div id="datosSesionContent"></div>
+    </div>
+  </div>
+
+  <script>
+    // Verificar login
+    if (!localStorage.getItem('token')) {
+      window.location.href = '/login_cuidador/';
+    }
+
+    const token = localStorage.getItem('token');
+
+    function logout() {
+      if (confirm('¿Cerrar sesión del cuidador?')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('cuidador_id');
+        localStorage.removeItem('nombre');
+        window.location.href = '/login_cuidador/';
+      }
+    }
+
+    // Cargar al inicio
+    window.onload = () => {
+      cargarSesionActiva();
+      cargarSesiones();
+    };
+
+    // Sesión activa
+    async function cargarSesionActiva() {
+      try {
+        const res = await fetch('/api/paciente-actual/', {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        const data = await res.json();
+
+        const content = document.getElementById('sesionActivaContent');
+        if (data.mensaje) {
+          content.innerHTML = `<p style="color:#155724;">${data.mensaje}</p>`;
+        } else {
+          const inicio = new Date(data.inicio).toLocaleString('es-PE');
+          content.innerHTML = `
+            <p><strong>Paciente:</strong> ${data.paciente.nombre} ${data.paciente.apellido}</p>
+            <p><strong>Inicio:</strong> ${inicio}</p>
+            <button class="btn btn-danger btn-sm" onclick="finalizarSesion()">Finalizar Sesión</button>
+          `;
+        }
+      } catch (err) {
+        document.getElementById('sesionActivaContent').innerHTML = 
+          `<p class="error-message">Error al cargar sesión activa</p>`;
+      }
+    }
+
+    // Histórico
+    async function cargarSesiones() {
+      try {
+        const res = await fetch('/api/sesiones/', {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        const sesiones = await res.json();
+        mostrarSesiones(sesiones);
+      } catch (err) {
+        document.getElementById('sesionesBody').innerHTML = 
+          `<tr class="empty"><td colspan="5">Error al cargar sesiones</td></tr>`;
+      }
+    }
+
+    function mostrarSesiones(sesiones) {
+      const tbody = document.getElementById('sesionesBody');
+      if (sesiones.length === 0) {
+        tbody.innerHTML = `<tr class="empty"><td colspan="5">No hay sesiones registradas</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      sesiones.forEach(s => {
+        const inicio = new Date(s.inicio).toLocaleString('es-PE');
+        const fin = s.fin ? new Date(s.fin).toLocaleString('es-PE') : '—';
+        const estado = s.activa ? 'Activa' : 'Finalizada';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${s.paciente_nombre}</strong></td>
+          <td>${inicio}</td>
+          <td>${fin}</td>
+          <td><span style="color:${s.activa ? '#10b981' : '#6b7280'}; font-weight:500;">${estado}</span></td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="verDatosSesion(${s.id})">
+              Ver Datos
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Finalizar sesión
+    async function finalizarSesion() {
+      if (!confirm('¿Finalizar la sesión actual?')) return;
+      try {
+        await fetch('/api/sesiones/finalizar_activa/', {
+          method: 'POST',
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        cargarSesionActiva();
+        cargarSesiones();
+      } catch (err) {
+        alert('Error al finalizar sesión');
+      }
+    }
+
+    // Ver datos
+    async function verDatosSesion(id) {
+      const div = document.getElementById('datosSesion');
+      const content = document.getElementById('datosSesionContent');
+      div.style.display = 'block';
+      content.innerHTML = '<div class="loading">Cargando datos...</div>';
+      div.scrollIntoView({ behavior: 'smooth' });
+
+      try {
+        // Estadísticas
+        const statsRes = await fetch(`/api/sesiones/${id}/estadisticas/`, {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        const stats = await statsRes.json();
+
+        // Datos detallados
+        const dataRes = await fetch(`/api/sesiones/${id}/datos/`, {
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        const { datos } = await dataRes.json();
+
+        // Estadísticas
+        const statsHtml = `
+          <div class="stats-grid">
+            <div class="stat-box">
+              <h5>Temperatura</h5>
+              <p><strong>Mín:</strong> ${stats.temperatura.min.toFixed(2)}°C</p>
+              <p><strong>Máx:</strong> ${stats.temperatura.max.toFixed(2)}°C</p>
+              <p><strong>Prom:</strong> ${stats.temperatura.avg.toFixed(2)}°C</p>
+            </div>
+            <div class="stat-box">
+              <h5>Distancia</h5>
+              <p><strong>Mín:</strong> ${stats.distancia.min.toFixed(2)} cm</p>
+              <p><strong>Máx:</strong> ${stats.distancia.max.toFixed(2)} cm</p>
+              <p><strong>Prom:</strong> ${stats.distancia.avg.toFixed(2)} cm</p>
+            </div>
+            <div class="stat-box">
+              <h5>General</h5>
+              <p><strong>Duración:</strong> ~${Math.round(stats.duracion_minutos)} min</p>
+              <p><strong>Registros:</strong> ${stats.total_registros}</p>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-${id}"></canvas>
+          </div>
+        `;
+
+        if (datos.length === 0) {
+          content.innerHTML = statsHtml + '<p class="error-message">No hay datos registrados.</p>';
+          return;
         }
 
-        const token = localStorage.getItem('token');
+        // Tabla
+        let tableHtml = `
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Temp (°C)</th>
+                <th>Dist (cm)</th>
+                <th>Nivel</th>
+                <th>Color</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        datos.forEach(d => {
+          tableHtml += `
+            <tr>
+              <td>${new Date(d.timestamp).toLocaleString('es-PE')}</td>
+              <td>${d.temperatura.toFixed(2)}</td>
+              <td>${d.distancia.toFixed(1)}</td>
+              <td>${d.nivel}</td>
+              <td>${d.color}</td>
+            </tr>
+          `;
+        });
+        tableHtml += '</tbody></table>';
 
-        // Cargar datos al iniciar
-        window.onload = function() {
-            loadSesionActiva();
-            loadSesiones();
-        }
+        content.innerHTML = statsHtml + tableHtml;
 
-        // Cargar sesión activa
-        async function loadSesionActiva() {
-            try {
-                const response = await fetch('/api/paciente-actual/', {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const data = await response.json();
-                
-                const content = document.getElementById('sesionActivaContent');
-                if (data.mensaje) {
-                    content.innerHTML = '<p>' + data.mensaje + '</p>';
-                } else {
-                    content.innerHTML = `
-                        <p><strong>Paciente:</strong> ${data.paciente.nombre} ${data.paciente.apellido}</p>
-                        <p><strong>Inicio:</strong> ${new Date(data.inicio).toLocaleString()}</p>
-                        <button class="btn btn-danger" onclick="finalizarSesion()">Finalizar Sesión</button>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error:', error);
+        // Gráfica
+        const ctx = document.getElementById(`chart-${id}`).getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: datos.map(d => new Date(d.timestamp).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })),
+            datasets: [
+              {
+                label: 'Temperatura (°C)',
+                data: datos.map(d => d.temperatura),
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                tension: 0.3,
+                yAxisID: 'y'
+              },
+              {
+                label: 'Distancia (cm)',
+                data: datos.map(d => d.distancia),
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.3,
+                yAxisID: 'y1'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+              y: { position: 'left', title: { display: true, text: 'Temperatura (°C)' } },
+              y1: { position: 'right', title: { display: true, text: 'Distancia (cm)' }, grid: { drawOnChartArea: false } }
             }
-        }
+          }
+        });
 
-        // Cargar todas las sesiones
-        async function loadSesiones() {
-            try {
-                const response = await fetch('/api/sesiones/', {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const sesiones = await response.json();
-                displaySesiones(sesiones);
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-
-            // Mostrar sesiones en la tabla
-        function displaySesiones(sesiones) {
-            const tbody = document.getElementById('sesionesBody');
-            tbody.innerHTML = '';
-            
-            sesiones.forEach(sesion => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${sesion.paciente_nombre}</td>
-                    <td>${new Date(sesion.inicio).toLocaleString()}</td>
-                    <td>${sesion.fin ? new Date(sesion.fin).toLocaleString() : '-'}</td>
-                    <td>${sesion.activa ? 'Activa' : 'Finalizada'}</td>
-                    <td>
-                        <button class="btn btn-primary" onclick="event.preventDefault(); verDatosSesion(${sesion.id})">Ver Datos</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        // Finalizar sesión activa
-        async function finalizarSesion() {
-            if (confirm('¿Estás seguro de que deseas finalizar la sesión actual?')) {
-                try {
-                    await fetch('/api/sesiones/finalizar_activa/', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Token ${token}`
-                        }
-                    });
-                    loadSesionActiva();
-                    loadSesiones();
-                } catch (error) {
-                    console.error('Error:', error);
-                }
-            }
-        }
-
-        // Ver datos de una sesión
-        async function verDatosSesion(id) {
-            // Prevenir comportamiento por defecto si viene de un evento
-            if (event) {
-                event.preventDefault();
-            }
-
-            const datosDiv = document.getElementById('datosSesion');
-            const content = document.getElementById('datosSesionContent');
-            
-            // Desplazar a la sección de datos
-            datosDiv.scrollIntoView({ behavior: 'smooth' });
-            
-            // Mostrar mensaje de carga
-            datosDiv.style.display = 'block';
-            content.innerHTML = '<div class="loading">Cargando datos de la sesión...</div>';
-
-            try {
-                // Primero, cargar las estadísticas
-                const statsResponse = await fetch(`/api/sesiones/${id}/estadisticas/`, {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const stats = await statsResponse.json();
-
-                // Luego, cargar los datos detallados
-                const dataResponse = await fetch(`/api/sesiones/${id}/datos/`, {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const response = await dataResponse.json();
-                const datos = response.datos;
-                
-                const datosDiv = document.getElementById('datosSesion');
-                const content = document.getElementById('datosSesionContent');
-                
-                // Mostrar estadísticas
-                let statsHtml = `
-                    <div class="stats-container">
-                        <h4>Estadísticas de la Sesión</h4>
-                        <div class="stats-grid">
-                            <div class="stat-box">
-                                <h5>Temperatura</h5>
-                                <p><strong>Mínima:</strong> ${stats.temperatura.min.toFixed(2)}°C</p>
-                                <p><strong>Máxima:</strong> ${stats.temperatura.max.toFixed(2)}°C</p>
-                                <p><strong>Promedio:</strong> ${stats.temperatura.avg.toFixed(2)}°C</p>
-                            </div>
-                            <div class="stat-box">
-                                <h5>Distancia</h5>
-                                <p><strong>Mínima:</strong> ${stats.distancia.min.toFixed(2)} cm</p>
-                                <p><strong>Máxima:</strong> ${stats.distancia.max.toFixed(2)} cm</p>
-                                <p><strong>Promedio:</strong> ${stats.distancia.avg.toFixed(2)} cm</p>
-                            </div>
-                            <div class="stat-box">
-                                <h5>Información General</h5>
-                                <p><strong>Duración:</strong> ${Math.round(stats.duracion_minutos)} minutos</p>
-                                <p><strong>Total de registros:</strong> ${stats.total_registros}</p>
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <canvas id="datosChart"></canvas>
-                        </div>
-                    </div>
-                `;
-
-                // Mostrar datos detallados
-                if (datos.length === 0) {
-                    content.innerHTML = statsHtml + '<div class="error-message">No hay datos registrados para esta sesión.</div>';
-                } else {
-                    // Preparar datos para la gráfica
-                    const timestamps = datos.map(d => new Date(d.timestamp).toLocaleTimeString());
-                    const temperaturas = datos.map(d => d.temperatura);
-                    const distancias = datos.map(d => d.distancia);
-
-                    let tableHtml = `
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Hora</th>
-                                    <th>Temperatura</th>
-                                    <th>Distancia</th>
-                                    <th>Nivel</th>
-                                    <th>Color</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                    `;
-                    datos.forEach(dato => {
-                        tableHtml += `
-                            <tr>
-                                <td>${new Date(dato.timestamp).toLocaleString()}</td>
-                                <td>${dato.temperatura.toFixed(2)}°C</td>
-                                <td>${dato.distancia.toFixed(2)} cm</td>
-                                <td>${dato.nivel}</td>
-                                <td>${dato.color}</td>
-                            </tr>
-                        `;
-                    });
-                    tableHtml += '</table>';
-                    content.innerHTML = statsHtml + tableHtml;
-
-                    // Crear la gráfica
-                    const ctx = document.getElementById('datosChart').getContext('2d');
-                    new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: timestamps,
-                            datasets: [
-                                {
-                                    label: 'Temperatura (°C)',
-                                    data: temperaturas,
-                                    borderColor: 'rgb(255, 99, 132)',
-                                    tension: 0.1,
-                                    yAxisID: 'y'
-                                },
-                                {
-                                    label: 'Distancia (cm)',
-                                    data: distancias,
-                                    borderColor: 'rgb(54, 162, 235)',
-                                    tension: 0.1,
-                                    yAxisID: 'y1'
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            interaction: {
-                                mode: 'index',
-                                intersect: false,
-                            },
-                            scales: {
-                                y: {
-                                    type: 'linear',
-                                    display: true,
-                                    position: 'left',
-                                    title: {
-                                        display: true,
-                                        text: 'Temperatura (°C)'
-                                    }
-                                },
-                                y1: {
-                                    type: 'linear',
-                                    display: true,
-                                    position: 'right',
-                                    title: {
-                                        display: true,
-                                        text: 'Distancia (cm)'
-                                    }
-                                }
-                            }
-                        }
-                    });
-                }
-                
-                datosDiv.style.display = 'block';
-            } catch (error) {
-                console.error('Error:', error);
-                content.innerHTML = '<div class="error-message">Error al cargar los datos: ' + error.message + '</div>';
-            }
-        }
-    </script>
+      } catch (err) {
+        content.innerHTML = `<p class="error-message">Error: ${err.message}</p>`;
+      }
+    }
+  </script>
 </body>
 </html>
