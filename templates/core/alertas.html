@@ -326,7 +326,6 @@
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.detail || 'Error al cargar los mensajes');
             }
-            
             const mensajes = await response.json();
             displayMensajes(mensajes);
         } catch (error) {
