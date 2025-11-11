@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from django.shortcuts import render
 
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,6 +10,8 @@ from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from .models import Paciente, SesionPaciente, Dispositivo, Cuidador, DatoSensor
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from .serializers import SesionSerializer
 from rest_framework.decorators import permission_classes
 
@@ -75,6 +78,26 @@ def recibir_telemetria(request):
         nivel=nivel
     )
 
+    # --- INICIO: ENVIAR DATOS POR WEBSOCKET ---
+    # 1. Obtener el layer de Channels
+    channel_layer = get_channel_layer()
+
+    # 2. Preparar los datos a enviar
+    datos_para_websocket = {
+        'color': sensor.color,
+        'temperatura': sensor.temperatura,
+        'distancia': sensor.distancia,
+        'nivel': sensor.nivel,
+        'paciente': f"{sesion.paciente.nombre} {sesion.paciente.apellido}",
+    }
+
+    # 3. Enviar el mensaje al grupo
+    async_to_sync(channel_layer.group_send)(
+        'telemetria_realtime',  # Mismo nombre de grupo que en el consumer
+        {'type': 'telemetria.update', 'datos': datos_para_websocket}
+    )
+    # --- FIN: ENVIAR DATOS POR WEBSOCKET ---
+
     return Response(
         {'status': 'ok', 'id': sensor.id, 'timestamp': sensor.timestamp.isoformat()},
         status=status.HTTP_201_CREATED
@@ -129,3 +152,23 @@ class PacienteActual(APIView):
         if sesion:
             return Response(SesionSerializer(sesion).data)
         return Response({"mensaje": "Nadie está usando los lentes"}, status=200)
+
+# ==================== VISTAS WEB ====================
+def login_cuidador_view(request):
+    return render(request, 'core/login_cuidador.html')
+
+def login_paciente_view(request):
+    return render(request, 'core/login_paciente.html')
+
+@csrf_exempt
+def monitor_realtime(request):
+    return render(request, 'core/monitor.html')
+
+def pacientes_view(request):
+    return render(request, 'core/pacientes.html')
+
+def sesiones_view(request):
+    return render(request, 'core/sesiones.html')
+
+def alertas_view(request):
+    return render(request, 'core/alertas.html')

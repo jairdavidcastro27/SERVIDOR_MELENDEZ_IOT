@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Monitor - Vista Primera Persona</title>
+    <style>
+        html,body{height:100%;margin:0;background:#050608;color:#ddd;font-family:Arial,Helvetica,sans-serif}
+        .topbar{height:48px;display:flex;align-items:center;gap:12px;padding:8px 16px;background:#0b0f12}
+        .status{padding:6px 10px;border-radius:6px;font-weight:600}
+        .hud{display:flex;gap:12px;align-items:center}
+        #fpCanvas{width:100vw;max-width:100vw;height:calc(100vh - 64px);max-height:calc(100vh - 64px);display:block;box-sizing:border-box;}
+        .controls{position:fixed;right:12px;top:60px;z-index:40}
+        #togglePredator{padding:8px 12px;border-radius:6px;border:0;background:#343a40;color:#fff;cursor:pointer}
+        .info{font-size:13px;opacity:0.95}
+        @media (max-width: 700px) {
+            .topbar{flex-direction:column;align-items:flex-start;height:auto;gap:4px;padding:8px 4px;}
+            #fpCanvas{height:calc(100vh - 100px);}
+            .controls{top:8px;right:8px;}
+        }
+    </style>
+    <!-- Sonidos Predator libres: beep y búsqueda -->
+    <audio id="sndLock" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b6c6b2.mp3" preload="auto"></audio>
+    <audio id="sndSearch" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b6c6b2.mp3" preload="auto"></audio>
+</head>
+<body>
+    <div class="topbar">
+        <div class="hud">
+            <div id="status" class="status">Desconectado</div>
+            <div class="info">Paciente: <span id="paciente">-</span></div>
+            <div class="info">Temp: <span id="temperatura">-</span></div>
+            <div class="info">Dist: <span id="distancia">-</span></div>
+            <div class="info">Nivel: <span id="nivel">-</span></div>
+            <div class="info">Color: <span id="color">-</span></div>
+        </div>
+        <div style="flex:1"></div>
+        <div id="nombreCuidador" class="info">Usuario</div>
+    </div>
+
+    <canvas id="fpCanvas"></canvas>
+
+    <div class="controls">
+    <button id="togglePredator">Predator</button>
+    <button id="toggleRadar">Radar</button>
+    </div>
+
+    <script>
+        // Auth helper
+        function checkAuthRedirect(){ const token=localStorage.getItem('token'); if(!token){ /* show and redirect */ } else { document.getElementById('nombreCuidador').textContent = localStorage.getItem('nombre') || 'Usuario'; }}
+        checkAuthRedirect();
+
+        // DOM refs
+        const statusElem = document.getElementById('status');
+        const pacienteElem = document.getElementById('paciente');
+        const temperaturaElem = document.getElementById('temperatura');
+        const distanciaElem = document.getElementById('distancia');
+        const nivelElem = document.getElementById('nivel');
+        const colorElem = document.getElementById('color');
+
+        // Canvas
+        const canvas = document.getElementById('fpCanvas');
+        const ctx = canvas.getContext('2d');
+        let DPR = window.devicePixelRatio || 1;
+        function resizeCanvas(){ const rect = canvas.getBoundingClientRect(); canvas.width = Math.round(rect.width * DPR); canvas.height = Math.round(rect.height * DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const MAX_CM = 40;
+        let latest = { distancia_cm: null, nivel: 0, angle: 0 };
+        let smoothDist = null;
+
+        function normalizeDistance(raw){ if (raw===null||raw===undefined) return null; const v=Number(raw); if(isNaN(v)) return null; if(v<=4) return Math.round(v*100); return Math.round(v); }
+
+        function heatColor(t) {
+            // t: 0 (lejos, frío) ... 1 (cerca, caliente)
+            // Azul -> verde -> amarillo -> rojo (estilo térmico)
+            let r=0,g=0,b=0;
+            if (t < 0.25) { // azul a verde
+                r = 0;
+                g = Math.round(255 * (t/0.25));
+                b = 255;
+            } else if (t < 0.5) { // verde a amarillo
+                r = Math.round(255 * ((t-0.25)/0.25));
+                g = 255;
+                b = 255 - Math.round(255 * ((t-0.25)/0.25));
+            } else if (t < 0.75) { // amarillo a naranja
+                r = 255;
+                g = 255 - Math.round(155 * ((t-0.5)/0.25));
+                b = 0;
+            } else { // naranja a rojo
+                r = 255;
+                g = 100 - Math.round(100 * ((t-0.75)/0.25));
+                b = 0;
+            }
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function heatColorHex(t) {
+            // Devuelve el color térmico en formato HEX
+            let rgb = heatColor(t).match(/\d+/g);
+            return '#' + rgb.map(x => (+x).toString(16).padStart(2,'0')).join('');
+        }
+
+        // Animación de caminar: offset global
+        let walkOffset = 0;
+        // Sonido: reproducir beep/lock o búsqueda
+        let lastLock = false, lastSearch = false;
+        function playSound(type) {
+            if(type==='lock') {
+                if(!lastLock) { document.getElementById('sndLock').currentTime=0; document.getElementById('sndLock').play(); lastLock=true; }
+            } else if(type==='search') {
+                if(!lastSearch) { document.getElementById('sndSearch').currentTime=0; document.getElementById('sndSearch').play(); lastSearch=true; }
+            }
+        }
+        function stopSound(type) {
+            if(type==='lock') { document.getElementById('sndLock').pause(); lastLock=false; }
+            if(type==='search') { document.getElementById('sndSearch').pause(); lastSearch=false; }
+        }
+
+        function drawScene(dist_cm, nivel, angleDeg, predatorOn) {
+            const W = canvas.width / DPR; const H = canvas.height / DPR;
+            const cx=W/2, cy=H*0.68;
+            walkOffset += 2.2 + (dist_cm ? Math.max(0, 2.5 - dist_cm/8) : 0.8);
+
+            // Obtener color real del ESP32 (si existe)
+            let colorESP = latest && latest.color ? latest.color : null;
+            // Si es un color tipo "rgb(...)" o "#...", úsalo directo; si es nombre, conviértelo a HEX simple
+            function parseColor(c) {
+                if (!c) return '#ffffff';
+                if (c.startsWith('#')) return c;
+                if (c.startsWith('rgb')) {
+                    let m = c.match(/\d+/g); if (!m) return '#ffffff';
+                    return '#' + m.map(x => (+x).toString(16).padStart(2,'0')).join('');
+                }
+                // nombres comunes
+                const map = {red:'#ff0000',blue:'#0000ff',green:'#00ff00',yellow:'#ffff00',orange:'#ffa500',white:'#ffffff',black:'#000000'};
+                return map[c.toLowerCase()] || '#ffffff';
+            }
+            let colorHUD = colorESP ? parseColor(colorESP) : heatColorHex(0);
+
+            // ...existing code for background, walls, floor, etc...
+            if (predatorOn) {
+                ctx.save();
+                ctx.fillStyle = '#0a1a2f';
+                ctx.fillRect(0,0,W,H);
+                ctx.globalAlpha = 0.18;
+                for(let i=0;i<32;i++){
+                    ctx.strokeStyle = `rgba(60,120,255,${0.12+0.08*Math.sin(i+walkOffset/40)})`;
+                    ctx.lineWidth = 1.2+0.8*Math.sin(i+walkOffset/30);
+                    ctx.beginPath();
+                    for(let j=0;j<8;j++){
+                        let px = (W/8)*j + Math.sin(i+j+walkOffset/60)*12;
+                        let py = (H/32)*i + Math.cos(j+i+walkOffset/50)*8;
+                        if(j===0) ctx.moveTo(px,py);
+                        else ctx.lineTo(px,py);
+                    }
+                    ctx.stroke();
+                }
+                ctx.restore();
+            } else {
+                const bg = ctx.createLinearGradient(0,0,0,H*0.6); bg.addColorStop(0,'#071018'); bg.addColorStop(1,'#0b0b0d'); ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+                const floor = ctx.createLinearGradient(0,H*0.6,0,H); floor.addColorStop(0,'#0b0b0d'); floor.addColorStop(1,'#101218'); ctx.fillStyle = floor; ctx.fillRect(0,H*0.6,W,H*0.4);
+            }
+            // ...paredes, piso, luces, igual que antes...
+            ctx.save();
+            ctx.globalAlpha = predatorOn ? 0.18 : 0.22;
+            ctx.strokeStyle = predatorOn ? '#b6e0ff' : '#aaa';
+            ctx.lineWidth = 3;
+            for(let i=-1;i<=1;i+=2){
+                ctx.beginPath();
+                ctx.moveTo(cx+i*W*0.18, H*0.28);
+                ctx.lineTo(cx+i*W*0.48+Math.sin(walkOffset/32+i*2)*18, H);
+                ctx.stroke();
+            }
+            ctx.restore();
+            ctx.save();
+            ctx.globalAlpha = predatorOn ? 0.10 : 0.13;
+            ctx.strokeStyle = predatorOn ? '#b6e0ff' : '#fff';
+            ctx.lineWidth = 1.2;
+            const gridLines = 10;
+            for(let i=1;i<=gridLines;i++){
+                let y = H*0.6 + ((i/ gridLines) * (H*0.4));
+                y += (walkOffset % (H*0.4/gridLines));
+                if(y > H) y -= H*0.4;
+                ctx.beginPath(); ctx.moveTo(W*0.1, y); ctx.lineTo(W*0.9, y); ctx.stroke();
+            }
+            const fx = cx, fy = H*0.28;
+            for(let i=0;i<=gridLines;i++){
+                const px = W*0.1 + (i/gridLines)*(W*0.8) + Math.sin(walkOffset/40+i)*6;
+                ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(px, H); ctx.stroke();
+            }
+            ctx.restore();
+            ctx.save();
+            for(let i=0;i<4;i++){
+                let y = H*0.6 + ((i/4)*(H*0.4)) + (walkOffset*1.5 % (H*0.4/2));
+                if(y > H) y -= H*0.4;
+                ctx.globalAlpha = predatorOn ? 0.10 : 0.18;
+                ctx.fillStyle = predatorOn ? '#b6e0ff' : '#ffe066';
+                ctx.fillRect(cx-32, y, 64, 6);
+            }
+            ctx.restore();
+
+            if (!predatorOn) {
+                ctx.strokeStyle='rgba(0,255,150,0.95)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-18,cy); ctx.lineTo(cx+18,cy); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx,cy-18); ctx.lineTo(cx,cy+18); ctx.stroke();
+            } else {
+                // Retículo triangular tipo Predator
+                ctx.save();
+                let triY = cy + 38 + Math.sin(Date.now()/180)*6;
+                let triSize = 34;
+                let triColor = '#b6e0ff';
+                let close = dist_cm && dist_cm <= 8;
+                if (close) { triSize = 54; triColor = '#ff3333'; playSound('lock'); stopSound('search'); } else if (dist_cm && dist_cm > 8) { stopSound('lock'); playSound('search'); } else { stopSound('lock'); playSound('search'); }
+                // Triángulo hueco, ángulo agudo, líneas finas
+                ctx.globalAlpha = 0.93;
+                ctx.strokeStyle = triColor;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(cx, triY-triSize*1.1);
+                ctx.lineTo(cx-triSize*0.5, triY+triSize*0.8);
+                ctx.lineTo(cx+triSize*0.5, triY+triSize*0.8);
+                ctx.closePath();
+                ctx.stroke();
+                // Detalle: líneas internas
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(cx, triY-triSize*1.1);
+                ctx.lineTo(cx, triY+triSize*0.8);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            let hasObstacle = dist_cm && dist_cm>0 && dist_cm<=MAX_CM;
+            let t = hasObstacle ? 1 - (dist_cm / MAX_CM) : 0;
+            if (!hasObstacle && (walkOffset % 400) > 320) t = 0.15 + 0.1*Math.sin(walkOffset/40);
+            if(hasObstacle || t>0.12){
+                const baseW = W*0.13, baseH = H*0.32;
+                const minY = H*0.28, maxY = cy;
+                const y = minY + t*(maxY-minY);
+                const scale = 0.38 + t*0.85;
+                const obsW = baseW*scale;
+                const obsH = baseH*scale*1.1;
+                const angRad = (angleDeg||0)*Math.PI/180;
+                const x = cx + Math.tan(angRad)*W*0.18*scale;
+
+                if (!predatorOn) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.18+0.18*t;
+                    ctx.fillStyle = '#222';
+                    ctx.beginPath();
+                    ctx.ellipse(x, y+obsH*0.52, obsW*0.7, obsH*0.18, 0, 0, Math.PI*2);
+                    ctx.fill();
+                    ctx.restore();
+                    ctx.save();
+                    ctx.globalAlpha = 0.93;
+                    ctx.fillStyle = `rgb(${120+80*t},${120+60*t},${180+40*t})`;
+                    ctx.strokeStyle = `rgb(${180+60*t},${180+60*t},255)`;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.rect(x-obsW/2, y-obsH/2, obsW, obsH);
+                    ctx.fill(); ctx.stroke();
+                    ctx.restore();
+                    ctx.save();
+                    ctx.globalAlpha = 0.18+0.18*t;
+                    ctx.strokeStyle = '#fff';
+                    for(let i=-1;i<=1;i+=2){
+                        ctx.beginPath();
+                        ctx.moveTo(x+obsW*0.18*i, y-obsH/2+8);
+                        ctx.lineTo(x+obsW*0.18*i, y+obsH/2-8);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                } else {
+                    // Depredador: gradiente térmico realista
+                    ctx.save();
+                    ctx.globalAlpha = 0.95;
+                    let grad = ctx.createLinearGradient(x-obsW/2, y-obsH/2, x+obsW/2, y+obsH/2);
+                    grad.addColorStop(0, heatColor(0));
+                    grad.addColorStop(0.25, heatColor(0.25+t*0.1));
+                    grad.addColorStop(0.5, heatColor(0.5+t*0.2));
+                    grad.addColorStop(0.75, heatColor(0.75+t*0.2));
+                    grad.addColorStop(1, heatColor(1));
+                    ctx.fillStyle = grad;
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 3 + 2*Math.abs(Math.sin(Date.now()/180));
+                    ctx.shadowColor = heatColor(1);
+                    ctx.shadowBlur = 18 + 10*t;
+                    ctx.beginPath();
+                    ctx.rect(x-obsW/2, y-obsH/2, obsW, obsH);
+                    ctx.fill(); ctx.stroke();
+                    ctx.restore();
+                    // Scanlines y distorsión
+                    ctx.save();
+                    ctx.globalAlpha = 0.18+0.12*t;
+                    ctx.strokeStyle = 'rgba(60,120,255,0.18)';
+                    for(let y2=0;y2<H;y2+=4){ ctx.beginPath(); ctx.moveTo(0,y2+Math.sin(Date.now()/200+y2/18)*2); ctx.lineTo(W,y2+Math.sin(Date.now()/200+y2/18)*2); ctx.stroke(); }
+                    ctx.restore();
+                }
+                // LOCK
+                if(hasObstacle && dist_cm<=8){ ctx.fillStyle= predatorOn ? 'rgba(255,255,255,0.95)' : 'rgba(255,0,0,0.95)'; ctx.font='28px Arial'; ctx.fillText('LOCK',cx-36,cy-80); }
+                // HUD info térmica
+                if (predatorOn) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.98;
+                    ctx.font = 'bold 16px monospace';
+                    ctx.fillStyle = colorHUD;
+                    ctx.fillText(`DIST: ${hasObstacle ? dist_cm : '--'} cm`, 18, 38);
+                    ctx.fillText(`NIVEL: ${nivel}`, 18, 60);
+                    ctx.fillText(`COLOR: ${colorHUD}`, 18, 82);
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle= 'rgba(255,255,255,0.9)'; ctx.font='14px Arial'; ctx.fillText(`Dist: ${hasObstacle ? dist_cm : '--'} cm`,16,H-24); ctx.fillText(`Nivel: ${nivel}`,16,H-6);
+                }
+            } else {
+                ctx.fillStyle= predatorOn ? 'rgba(200,220,255,0.7)' : 'rgba(255,255,255,0.6)'; ctx.font='16px Arial'; ctx.fillText(predatorOn ? 'BUSCANDO CALOR...' : 'CAMINANDO...', W/2-70, H*0.68+80);
+            }
+        }
+
+
+        let predatorOn=false;
+        let radarOn=false;
+        const predBtn=document.getElementById('togglePredator');
+        const radarBtn=document.getElementById('toggleRadar');
+        predBtn.addEventListener('click',()=>{
+            predatorOn=true;
+            radarOn=false;
+            predBtn.style.background='#c82333';
+            radarBtn.style.background='#343a40';
+        });
+        radarBtn.addEventListener('click',()=>{
+            radarOn=true;
+            predatorOn=false;
+            radarBtn.style.background='#1efc1e';
+            predBtn.style.background='#343a40';
+        });
+        // Por defecto inicia en Predator
+        predBtn.style.background='#c82333';
+
+        function lerp(a,b,t){ return a + (b-a)*t; }
+
+        // --- Radar militar ---
+        function drawRadar(dist_cm, nivel, angleDeg) {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            const W = canvas.width / DPR, H = canvas.height / DPR;
+            const cx = W/2, cy = H/2;
+            const r = Math.min(W,H)*0.42;
+            let now = Date.now();
+            // Fondo futurista con glass y partículas
+            ctx.save();
+            let bgGrad = ctx.createRadialGradient(cx,cy,r*0.1,cx,cy,r*1.1);
+            bgGrad.addColorStop(0,'#1a2a38cc');
+            bgGrad.addColorStop(1,'#0a1018ee');
+            ctx.beginPath();
+            ctx.arc(cx,cy,r+12,0,2*Math.PI);
+            ctx.fillStyle = bgGrad;
+            ctx.globalAlpha = 0.98;
+            ctx.filter = 'blur(1.5px)';
+            ctx.fill();
+            ctx.filter = 'none';
+            ctx.restore();
+            // Partículas sutiles
+            ctx.save();
+            for(let i=0;i<22;i++){
+                let pr = r*0.15+Math.random()*r*0.85;
+                let pa = (now/900 + i*0.18 + Math.sin(i*3.1))*Math.PI*2;
+                let px = cx + Math.cos(pa)*pr;
+                let py = cy + Math.sin(pa)*pr;
+                ctx.globalAlpha = 0.08+0.08*Math.sin(now/400+i);
+                ctx.beginPath();
+                ctx.arc(px,py,1.2+Math.sin(now/300+i)*0.7,0,2*Math.PI);
+                ctx.fillStyle = '#b6e0ff';
+                ctx.fill();
+            }
+            ctx.restore();
+            // Círculos concéntricos con brillo
+            ctx.save();
+            for(let i=1;i<=4;i++){
+                ctx.beginPath();
+                ctx.arc(cx,cy,r*i/4,0,2*Math.PI);
+                ctx.strokeStyle = `rgba(80,255,255,${0.13+0.07*i})`;
+                ctx.lineWidth = 1.5+0.5*i;
+                ctx.shadowColor = '#b6e0ff';
+                ctx.shadowBlur = 6+2*i;
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+            // Líneas dinámicas
+            ctx.save();
+            for(let a=0;a<360;a+=18){
+                let rad = a*Math.PI/180;
+                let x1 = cx + Math.cos(rad)*r*0.18;
+                let y1 = cy + Math.sin(rad)*r*0.18;
+                let x2 = cx + Math.cos(rad)*r*1.05;
+                let y2 = cy + Math.sin(rad)*r*1.05;
+                ctx.beginPath();
+                ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle = 'rgba(120,220,255,0.09)'; ctx.lineWidth = 1.1; ctx.stroke();
+            }
+            ctx.restore();
+            // Barrido animado con luz y eco
+            let sweepAngle = ((now/15)%360)*Math.PI/180;
+            for(let k=0;k<7;k++){
+                let fade = 1-k*0.13;
+                let ang = sweepAngle-k*0.06;
+                ctx.save();
+                let grad = ctx.createRadialGradient(cx,cy,0,cx,cy,r*1.05);
+                grad.addColorStop(0,'#b6e0ff44');
+                grad.addColorStop(1,'#b6e0ff00');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 10-1.2*k;
+                ctx.globalAlpha = 0.19*fade;
+                ctx.beginPath();
+                ctx.arc(cx,cy,r*1.01,ang-0.09,ang+0.09);
+                ctx.stroke();
+                ctx.restore();
+            }
+            // Objeto detectado con pulso y eco
+            if(dist_cm && angleDeg!==null && angleDeg!==undefined){
+                let maxDist = 40; // máximo rango radar (cm)
+                let rr = Math.min(r, r*dist_cm/maxDist);
+                let objAngle = (angleDeg-90)*Math.PI/180;
+                let ox = cx + Math.cos(objAngle)*rr;
+                let oy = cy + Math.sin(objAngle)*rr;
+                let pulse = 8 + 7*Math.abs(Math.sin(now/180));
+                // Eco animado
+                for(let e=0;e<4;e++){
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(ox,oy,pulse+e*18,0,2*Math.PI);
+                    ctx.strokeStyle = `rgba(120,220,255,${0.13-0.03*e})`;
+                    ctx.lineWidth = 2-e*0.4;
+                    ctx.globalAlpha = 0.6-0.13*e;
+                    ctx.setLineDash([2+e*2,6+e*2]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.restore();
+                }
+                // Punto principal con glow
+                ctx.save();
+                ctx.shadowColor = '#b6e0ff';
+                ctx.shadowBlur = 22;
+                ctx.beginPath();
+                ctx.arc(ox,oy,pulse,0,2*Math.PI);
+                ctx.fillStyle = '#b6e0ff';
+                ctx.globalAlpha = 0.97;
+                ctx.fill();
+                ctx.restore();
+            }
+            // HUD minimalista
+            ctx.save();
+            ctx.font = 'bold '+Math.round(H*0.042)+'px Segoe UI,Arial,sans-serif';
+            ctx.fillStyle = '#b6e0ff';
+            ctx.globalAlpha = 0.92;
+            ctx.textAlign = 'center';
+            ctx.fillText('RADAR AVANZADO',cx,cy-r*1.16);
+            ctx.font = 'bold '+Math.round(H*0.028)+'px Segoe UI,Arial,sans-serif';
+            ctx.fillText('Distancia: '+(dist_cm?dist_cm+'cm':'-'),cx,cy+r*1.10);
+            ctx.fillText('Nivel: '+(nivel!==undefined?nivel:'-'),cx,cy+r*1.18);
+            ctx.restore();
+        }
+
+        function renderLoop(){
+            if(latest.distancia_cm==null) smoothDist=null;
+            else if(smoothDist==null) smoothDist=latest.distancia_cm;
+            else smoothDist=lerp(smoothDist, latest.distancia_cm, 0.18);
+            if(radarOn) {
+                drawRadar(smoothDist?Math.round(smoothDist):null, latest.nivel, latest.angle);
+            } else {
+                drawScene(smoothDist?Math.round(smoothDist):null, latest.nivel, latest.angle, predatorOn);
+            }
+            requestAnimationFrame(renderLoop);
+        }
+        requestAnimationFrame(renderLoop);
+
+        // WebSocket
+        const socketUrl = 'ws://' + window.location.host + '/ws/realtime/';
+        const socket = new WebSocket(socketUrl);
+        socket.onopen = function(){ console.log('WS conectado'); statusElem.textContent='Conectado'; statusElem.style.color='white'; statusElem.style.backgroundColor='green'; };
+        socket.onmessage = function(e){ try{ const data=JSON.parse(e.data); console.log('Datos recibidos:',data); pacienteElem.textContent = data.paciente || pacienteElem.textContent; if (data.temperatura!==undefined && data.temperatura!==null) temperaturaElem.textContent = Number(data.temperatura).toFixed(2); const d = normalizeDistance(data.distancia); if (d!==null) distanciaElem.textContent = d.toFixed(0); else if (data.distancia!==undefined && data.distancia!==null) distanciaElem.textContent = Number(data.distancia).toFixed(2); nivelElem.textContent = data.nivel!==undefined?data.nivel:nivelElem.textContent; colorElem.textContent = data.color||colorElem.textContent; latest.distancia_cm = d; latest.nivel = data.nivel||latest.nivel; if (data.angle!==undefined) latest.angle = Number(data.angle); }catch(err){console.error(err);} };
+        socket.onclose = function(){ console.warn('WS cerrado'); statusElem.textContent='Desconectado'; statusElem.style.color='white'; statusElem.style.backgroundColor='red'; };
+    </script>
+</body>
+</html>

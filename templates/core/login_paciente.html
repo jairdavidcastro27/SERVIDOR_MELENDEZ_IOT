@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Paciente</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Iniciar sesión como Paciente</h2>
+    <div id="error" class="error"></div>
+    <div class="form-group">
+        <label for="dni">DNI:</label>
+        <input type="text" id="dni" required>
+    </div>
+    <div class="form-group">
+        <label for="cuidador_id">ID Cuidador:</label>
+        <input type="text" id="cuidador_id" required>
+    </div>
+    <button onclick="login()">Iniciar sesión</button>
+
+    <script>
+        async function login() {
+            const dni = document.getElementById('dni').value;
+            const cuidador_id = document.getElementById('cuidador_id').value;
+            
+            try {
+                const response = await fetch('/api/iniciar-sesion/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        dni: dni,
+                        cuidador_id: cuidador_id
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Guardar información de la sesión si es necesario
+                    localStorage.setItem('sesion_paciente', JSON.stringify(data));
+                    // Redirigir al monitor
+                    window.location.href = '/monitor/';
+                } else {
+                    document.getElementById('error').textContent = data.error || 'Error al iniciar sesión';
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = 'Error de conexión';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-sru-+fx%r6cw*kv*ek)i&waj1obouam5y-7*t)1=)^=z(h@f-s
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.100.108', '*']
 
 
 # Application definition
@@ -61,7 +61,7 @@ ROOT_URLCONF = 'lentes_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

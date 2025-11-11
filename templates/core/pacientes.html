@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Pacientes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 70%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Gestión de Pacientes</h1>
+            <button class="btn btn-primary" onclick="showModal()">Nuevo Paciente</button>
+        </div>
+
+        <table id="pacientesTable">
+            <thead>
+                <tr>
+                    <th>DNI</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Fecha Nacimiento</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="pacientesBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal para nuevo/editar paciente -->
+    <div id="pacienteModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Nuevo Paciente</h2>
+            <form id="pacienteForm">
+                <div class="form-group">
+                    <label for="dni">DNI:</label>
+                    <input type="text" id="dni" required>
+                </div>
+                <div class="form-group">
+                    <label for="nombre">Nombre:</label>
+                    <input type="text" id="nombre" required>
+                </div>
+                <div class="form-group">
+                    <label for="apellido">Apellido:</label>
+                    <input type="text" id="apellido" required>
+                </div>
+                <div class="form-group">
+                    <label for="fecha_nacimiento">Fecha Nacimiento:</label>
+                    <input type="date" id="fecha_nacimiento">
+                </div>
+                <button type="submit" class="btn btn-success">Guardar</button>
+                <button type="button" class="btn btn-danger" onclick="hideModal()">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Verificar autenticación
+        if (!localStorage.getItem('token')) {
+            window.location.href = '/login_cuidador/';
+        }
+
+        // Variables globales
+        let editingId = null;
+        const token = localStorage.getItem('token');
+
+        // Cargar pacientes al iniciar
+        window.onload = function() {
+            loadPacientes();
+        }
+
+        // Función para cargar pacientes
+        async function loadPacientes() {
+            try {
+                const response = await fetch('/api/pacientes/', {
+                    headers: {
+                        'Authorization': `Token ${token}`
+                    }
+                });
+                const data = await response.json();
+                displayPacientes(data);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Mostrar pacientes en la tabla
+        function displayPacientes(pacientes) {
+            const tbody = document.getElementById('pacientesBody');
+            tbody.innerHTML = '';
+            
+            pacientes.forEach(paciente => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${paciente.dni}</td>
+                    <td>${paciente.nombre}</td>
+                    <td>${paciente.apellido}</td>
+                    <td>${paciente.fecha_nacimiento || '-'}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="editPaciente(${paciente.id})">Editar</button>
+                        <button class="btn btn-danger" onclick="deletePaciente(${paciente.id})">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Mostrar modal
+        function showModal() {
+            document.getElementById('pacienteModal').style.display = 'block';
+        }
+
+        // Ocultar modal
+        function hideModal() {
+            document.getElementById('pacienteModal').style.display = 'none';
+            editingId = null;
+            document.getElementById('pacienteForm').reset();
+        }
+
+        // Editar paciente
+        async function editPaciente(id) {
+            try {
+                const response = await fetch(`/api/pacientes/${id}/`, {
+                    headers: {
+                        'Authorization': `Token ${token}`
+                    }
+                });
+                const paciente = await response.json();
+                
+                editingId = id;
+                document.getElementById('dni').value = paciente.dni;
+                document.getElementById('nombre').value = paciente.nombre;
+                document.getElementById('apellido').value = paciente.apellido;
+                document.getElementById('fecha_nacimiento').value = paciente.fecha_nacimiento || '';
+                
+                document.getElementById('modalTitle').textContent = 'Editar Paciente';
+                showModal();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Eliminar paciente
+        async function deletePaciente(id) {
+            if (confirm('¿Estás seguro de que deseas eliminar este paciente?')) {
+                try {
+                    await fetch(`/api/pacientes/${id}/`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Token ${token}`
+                        }
+                    });
+                    loadPacientes();
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+        }
+
+        // Manejar envío del formulario
+        document.getElementById('pacienteForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const pacienteData = {
+                dni: document.getElementById('dni').value,
+                nombre: document.getElementById('nombre').value,
+                apellido: document.getElementById('apellido').value,
+                fecha_nacimiento: document.getElementById('fecha_nacimiento').value || null
+            };
+
+            try {
+                const url = editingId ? 
+                    `/api/pacientes/${editingId}/` : 
+                    '/api/pacientes/';
+                
+                const method = editingId ? 'PUT' : 'POST';
+                
+                await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Token ${token}`
+                    },
+                    body: JSON.stringify(pacienteData)
+                });
+
+                hideModal();
+                loadPacientes();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+    </script>
+</body>
+</html>

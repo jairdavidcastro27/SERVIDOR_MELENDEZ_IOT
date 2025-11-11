@@ -1,1 +1,1 @@
-web: gunicorn lentes_project.wsgi:application --bind 0.0.0.0:$PORT
+web: daphne -b 0.0.0.0 -p $PORT lentes_project.asgi:application

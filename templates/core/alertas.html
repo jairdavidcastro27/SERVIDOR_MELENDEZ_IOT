@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alertas y Mensajes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+        }
+        .tab.active {
+            border-bottom: 2px solid #007bff;
+            color: #007bff;
+        }
+        .content {
+            display: none;
+        }
+        .content.active {
+            display: block;
+        }
+        .card {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .alerta {
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+        }
+        .mensaje {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Alertas y Mensajes</h1>
+            <button class="btn btn-primary" onclick="showNuevoMensaje()">Nuevo Mensaje</button>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="cambiarTab('alertas')">Alertas</button>
+            <button class="tab" onclick="cambiarTab('mensajes')">Mensajes</button>
+        </div>
+
+        <div id="alertas" class="content active">
+            <div id="alertasContent"></div>
+        </div>
+
+        <div id="mensajes" class="content">
+            <div id="mensajesContent"></div>
+        </div>
+    </div>
+
+    <!-- Modal para nuevo mensaje -->
+    <div id="mensajeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
+        <div style="background: white; padding: 20px; max-width: 500px; margin: 50px auto; border-radius: 8px;">
+            <h2>Nuevo Mensaje</h2>
+            <form id="mensajeForm">
+                <div class="form-group">
+                    <label for="mensaje">Mensaje:</label>
+                    <textarea id="mensaje" required maxlength="128"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Enviar</button>
+                <button type="button" onclick="hideNuevoMensaje()" class="btn">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Verificar autenticación
+        if (!localStorage.getItem('token')) {
+            window.location.href = '/login_cuidador/';
+        }
+
+        const token = localStorage.getItem('token');
+
+        // Cargar datos al iniciar
+        window.onload = function() {
+            loadAlertas();
+            loadMensajes();
+        }
+
+        function cambiarTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            
+            document.querySelector(`.tab:nth-child(${tab === 'alertas' ? '1' : '2'})`).classList.add('active');
+            document.getElementById(tab).classList.add('active');
+        }
+
+        async function loadAlertas() {
+            try {
+                const response = await fetch('/api/alertas/', {
+                    headers: {
+                        'Authorization': `Token ${token}`
+                    }
+                });
+                const alertas = await response.json();
+                displayAlertas(alertas);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadMensajes() {
+            try {
+                const response = await fetch('/api/mensajes/', {
+                    headers: {
+                        'Authorization': `Token ${token}`
+                    }
+                });
+                const mensajes = await response.json();
+                displayMensajes(mensajes);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function displayAlertas(alertas) {
+            const content = document.getElementById('alertasContent');
+            if (alertas.length === 0) {
+                content.innerHTML = '<p>No hay alertas pendientes.</p>';
+                return;
+            }
+
+            content.innerHTML = alertas.map(alerta => `
+                <div class="card alerta">
+                    <h3>${alerta.tipo}</h3>
+                    <p>${alerta.mensaje}</p>
+                    <p><small>Severidad: ${alerta.severidad}</small></p>
+                    <p><small>${new Date(alerta.timestamp).toLocaleString()}</small></p>
+                    ${!alerta.vista ? `<button class="btn btn-primary" onclick="marcarAlertaVista(${alerta.id})">Marcar como vista</button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function displayMensajes(mensajes) {
+            const content = document.getElementById('mensajesContent');
+            if (mensajes.length === 0) {
+                content.innerHTML = '<p>No hay mensajes.</p>';
+                return;
+            }
+
+            content.innerHTML = mensajes.map(mensaje => `
+                <div class="card mensaje">
+                    <p>${mensaje.mensaje}</p>
+                    <p><small>Enviado: ${new Date(mensaje.timestamp).toLocaleString()}</small></p>
+                    <p><small>Estado: ${mensaje.leido ? 'Leído' : 'No leído'}</small></p>
+                </div>
+            `).join('');
+        }
+
+        async function marcarAlertaVista(id) {
+            try {
+                await fetch(`/api/alertas/${id}/marcar_vista/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Token ${token}`
+                    }
+                });
+                loadAlertas();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function showNuevoMensaje() {
+            document.getElementById('mensajeModal').style.display = 'block';
+        }
+
+        function hideNuevoMensaje() {
+            document.getElementById('mensajeModal').style.display = 'none';
+            document.getElementById('mensajeForm').reset();
+        }
+
+        document.getElementById('mensajeForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const mensaje = {
+                mensaje: document.getElementById('mensaje').value,
+                cuidador: localStorage.getItem('cuidador_id'),
+                sesion: document.querySelector('.sesion-activa')?.dataset?.id
+            };
+
+            try {
+                await fetch('/api/mensajes/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Token ${token}`
+                    },
+                    body: JSON.stringify(mensaje)
+                });
+
+                hideNuevoMensaje();
+                loadMensajes();
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        };
+    </script>
+</body>
+</html>
