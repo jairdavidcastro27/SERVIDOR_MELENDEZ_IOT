@@ -1147,7 +1147,7 @@
 
         async function obtenerSesionActiva() {
             try {
-                const res = await fetch('/api/paciente-activo/', {
+                const res = await fetch('/api/paciente-actual/', {
                     headers: { 'Authorization': `Token ${token}` }
                 });
                 const data = await res.json();
