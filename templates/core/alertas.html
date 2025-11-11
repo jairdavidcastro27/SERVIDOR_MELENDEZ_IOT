@@ -364,7 +364,6 @@
         
         const mensajeInput = document.getElementById('mensaje');
         const mensaje = mensajeInput.value.trim();
-        const interrumpir = document.getElementById('interrumpirRadar').checked;
 
         if (!mensaje) {
             alert('Por favor, escribe un mensaje');
@@ -372,13 +371,28 @@
             return;
         }
 
+        // Verificar que tengamos una sesión activa
+        if (!sesionActivaId) {
+            alert('Error: No hay una sesión activa. Por favor, inicia una sesión primero.');
+            return;
+        }
+
         // Obtener el ID del cuidador desde localStorage
         const cuidadorId = localStorage.getItem('cuidador_id');
         if (!cuidadorId) {
-            alert('Error: No se encontró el ID del cuidador');
+            alert('Error: No se encontró el ID del cuidador. Por favor, inicia sesión nuevamente.');
             window.location.href = '/login_cuidador/';
             return;
         }
+
+        // Crear el objeto de datos para el mensaje
+        const mensajeData = {
+            contenido: mensaje,          // ← antes decía mensaje
+            sesion: parseInt(sesionActivaId),
+            remitente: parseInt(cuidadorId)   // ← antes decía cuidador
+        };
+
+        console.log('Enviando mensaje con datos:', mensajeData);
 
         try {
             const response = await fetch('/api/mensajes/', {
@@ -387,20 +401,22 @@
                     'Content-Type': 'application/json', 
                     'Authorization': `Token ${token}` 
                 },
-                body: JSON.stringify({ 
-                    mensaje: mensaje,  // Cambiado de 'contenido' a 'mensaje'
-                    sesion: sesionActivaId,  // Cambiado de 'sesion_id' a 'sesion'
-                    cuidador: parseInt(cuidadorId)  // Asegurarse de que es un número
-                })
+                body: JSON.stringify(mensajeData)
             });
 
+            const responseData = await response.json().catch(() => ({}));
+            
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('Error del servidor:', errorData);  // Agregado para depuración
-                throw new Error(errorData.detail || 'Error al enviar el mensaje');
+                console.error('Error del servidor:', response.status, response.statusText, responseData);
+                throw new Error(responseData.detail || 
+                              responseData.error || 
+                              `Error al enviar el mensaje (${response.status})`);
             }
 
+            console.log('Mensaje enviado correctamente:', responseData);
+            
             // Limpiar el formulario y recargar mensajes
+            mensajeInput.value = '';
             hideNuevoMensaje();
             await loadMensajes();
             
