@@ -372,6 +372,14 @@
             return;
         }
 
+        // Obtener el ID del cuidador desde localStorage
+        const cuidadorId = localStorage.getItem('cuidador_id');
+        if (!cuidadorId) {
+            alert('Error: No se encontró el ID del cuidador');
+            window.location.href = '/login_cuidador/';
+            return;
+        }
+
         try {
             const response = await fetch('/api/mensajes/', {
                 method: 'POST',
@@ -380,14 +388,15 @@
                     'Authorization': `Token ${token}` 
                 },
                 body: JSON.stringify({ 
-                    contenido: mensaje, 
-                    interrumpir_radar: interrumpir, 
-                    sesion_id: sesionActivaId 
+                    mensaje: mensaje,  // Cambiado de 'contenido' a 'mensaje'
+                    sesion: sesionActivaId,  // Cambiado de 'sesion_id' a 'sesion'
+                    cuidador: parseInt(cuidadorId)  // Asegurarse de que es un número
                 })
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error('Error del servidor:', errorData);  // Agregado para depuración
                 throw new Error(errorData.detail || 'Error al enviar el mensaje');
             }
 
