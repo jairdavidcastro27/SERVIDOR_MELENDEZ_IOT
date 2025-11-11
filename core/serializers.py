@@ -51,9 +51,7 @@ class ComandoControlSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MensajeCuidadorSerializer(serializers.ModelSerializer):
-    cuidador_nombre = serializers.CharField(source='cuidador.user.username', read_only=True)
-    sesion_info = SesionSerializer(source='sesion', read_only=True)
-    
     class Meta:
         model = MensajeCuidador
-        fields = '__all__'
+        fields = ['id', 'mensaje', 'leido', 'timestamp']
+        read_only_fields = ['leido', 'timestamp']

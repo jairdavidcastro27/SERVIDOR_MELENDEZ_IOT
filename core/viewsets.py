@@ -171,6 +171,18 @@ class MensajeViewSet(viewsets.ModelViewSet):
             cuidador__user=self.request.user
         ).order_by('-timestamp')
 
+    def perform_create(self, serializer):
+        # Obtener sesión activa
+        sesion_activa = SesionPaciente.objects.filter(activa=True).first()
+        if not sesion_activa:
+            raise serializers.ValidationError("No hay sesión activa para enviar el mensaje.")
+        
+        # Guardar mensaje
+        serializer.save(
+            cuidador=self.request.user.cuidador,
+            sesion=sesion_activa
+        )
+
     @action(detail=True, methods=['post'])
     def marcar_leido(self, request, pk=None):
         mensaje = self.get_object()

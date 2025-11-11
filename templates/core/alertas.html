@@ -1022,59 +1022,60 @@
         }, 200);
     }
 
-        async function handleEnviarMensaje(e) {
-            e.preventDefault();
-            
-            const form = e.target;
-            const mensajeInput = form.querySelector('#mensaje');
-            const mensaje = mensajeInput.value.trim();
-            const interrumpirRadar = form.querySelector('#interrumpirRadar').checked;
+async function handleEnviarMensaje(e) {
+    e.preventDefault();
+    
+    const mensaje = document.getElementById('mensaje').value.trim();
+    const interrumpirRadar = document.getElementById('interrumpirRadar').checked;
 
-            // Validación
-            if (!mensaje) {
-                showError('Por favor ingresa un mensaje');
-                mensajeInput.classList.add('shake');
-                setTimeout(() => mensajeInput.classList.remove('shake'), 500);
-                return;
-            }
+    if (!mensaje) {
+        showError('Escribe un mensaje');
+        return;
+    }
 
-            try {
-                const response = await fetch('/api/enviar-mensaje/', {
-                    method: 'POST',
-                    headers: { 
-                        'Authorization': `Token ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        mensaje: mensaje,
-                        interrumpir_radar: interrumpirRadar,
-                        sesion: sesionActivaId
-                    })
-                });
+    try {
+        // ENVIAR SOLO EL MENSAJE
+        const response = await fetch('/api/mensajes/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Token ${token}`
+            },
+            body: JSON.stringify({
+                mensaje: mensaje  // ← SOLO ESTO
+            })
+        });
 
-                if (!response.ok) {
-                    try {
-                        const errorData = await response.json();
-                        throw new Error(errorData.mensaje || 'Error al enviar el mensaje');
-                    } catch (jsonError) {
-                        throw new Error('Error al enviar el mensaje');
-                    }
-                }
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.mensaje || err.detail || 'Error al enviar');
+        }
 
-                const data = await response.json();
-                
-                if (data.estado === 'ok') {
-                    showSuccess('Mensaje enviado correctamente');
-                    hideNuevoMensaje();
-                    loadMensajes();
-                } else {
-                    throw new Error(data.mensaje || 'Error al enviar el mensaje');
-                }
-            } catch (error) {
-                console.error('Error al enviar mensaje:', error);
-                showError(error.message || 'Error de conexión al enviar el mensaje');
-            }
-        };
+        showSuccess('Mensaje enviado');
+        hideNuevoMensaje();
+        loadMensajes();
+
+        // Enviar comando al ESP32 si se pidió
+        if (interrumpirRadar) {
+            await fetch('/api/comandos/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Token ${token}`
+                },
+                body: JSON.stringify({
+                    sesion: sesionActivaId,
+                    comando: 'SHOW_MESSAGE',
+                    parametros: mensaje
+                })
+            });
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        showError(error.message);
+    }
+}
 
     async function reanudarRadar() {
         if (!sesionActivaId) {
