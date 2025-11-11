@@ -360,71 +360,72 @@
     }
 
     async function handleEnviarMensaje(e) {
-        e.preventDefault();
-        
-        const mensajeInput = document.getElementById('mensaje');
-        const mensaje = mensajeInput.value.trim();
+    e.preventDefault();
+    
+    const mensajeInput = document.getElementById('mensaje');
+    const mensaje = mensajeInput.value.trim();
 
-        if (!mensaje) {
-            alert('Por favor, escribe un mensaje');
-            mensajeInput.focus();
-            return;
-        }
-
-        // Verificar que tengamos una sesión activa
-        if (!sesionActivaId) {
-            alert('Error: No hay una sesión activa. Por favor, inicia una sesión primero.');
-            return;
-        }
-
-        // Obtener el ID del cuidador desde localStorage
-        const cuidadorId = localStorage.getItem('cuidador_id');
-        if (!cuidadorId) {
-            alert('Error: No se encontró el ID del cuidador. Por favor, inicia sesión nuevamente.');
-            window.location.href = '/login_cuidador/';
-            return;
-        }
-
-        // Crear el objeto de datos para el mensaje
-        const mensajeData = {
-            contenido: mensaje,          // ← antes decía mensaje
-            sesion: parseInt(sesionActivaId),
-            remitente: parseInt(cuidadorId)   // ← antes decía cuidador
-        };
-
-        console.log('Enviando mensaje con datos:', mensajeData);
-
-        try {
-            const response = await fetch('/api/mensajes/', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Token ${token}` 
-                },
-                body: JSON.stringify(mensajeData)
-            });
-
-            const responseData = await response.json().catch(() => ({}));
-            
-            if (!response.ok) {
-                console.error('Error del servidor:', response.status, response.statusText, responseData);
-                throw new Error(responseData.detail || 
-                              responseData.error || 
-                              `Error al enviar el mensaje (${response.status})`);
-            }
-
-            console.log('Mensaje enviado correctamente:', responseData);
-            
-            // Limpiar el formulario y recargar mensajes
-            mensajeInput.value = '';
-            hideNuevoMensaje();
-            await loadMensajes();
-            
-        } catch (error) {
-            console.error('Error en handleEnviarMensaje:', error);
-            alert('Error al enviar el mensaje: ' + (error.message || 'Error desconocido'));
-        }
+    if (!mensaje) {
+        alert('Por favor, escribe un mensaje');
+        mensajeInput.focus();
+        return;
     }
+
+    // Verificar que tengamos una sesión activa
+    if (!sesionActivaId) {
+        alert('Error: No hay una sesión activa. Por favor, inicia una sesión primero.');
+        return;
+    }
+
+    // Obtener el ID del cuidador desde localStorage
+    const cuidadorId = localStorage.getItem('cuidador_id');
+    if (!cuidadorId) {
+        alert('Error: No se encontró el ID del cuidador. Por favor, inicia sesión nuevamente.');
+        window.location.href = '/login_cuidador/';
+        return;
+    }
+
+    // Crear el objeto de datos para el mensaje (campos correctos)
+    const mensajeData = {
+        contenido: mensaje,           // Texto del mensaje
+        sesion: parseInt(sesionActivaId),  // Sesión actual
+        cuidador: parseInt(cuidadorId)     // ID del cuidador
+    };
+
+    console.log('Enviando mensaje con datos:', mensajeData);
+
+    try {
+        const response = await fetch('/api/mensajes/', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Token ${token}` 
+            },
+            body: JSON.stringify(mensajeData)
+        });
+
+        const responseData = await response.json().catch(() => ({}));
+        
+        if (!response.ok) {
+            console.error('Error del servidor:', response.status, response.statusText, responseData);
+            throw new Error(responseData.detail || 
+                          responseData.error || 
+                          `Error al enviar el mensaje (${response.status})`);
+        }
+
+        console.log('Mensaje enviado correctamente:', responseData);
+        
+        // Limpiar el formulario y recargar mensajes
+        mensajeInput.value = '';
+        hideNuevoMensaje();
+        await loadMensajes();
+        
+    } catch (error) {
+        console.error('Error en handleEnviarMensaje:', error);
+        alert('Error al enviar el mensaje: ' + (error.message || 'Error desconocido'));
+    }
+}
+
 
     async function reanudarRadar() {
         if (!sesionActivaId) {
