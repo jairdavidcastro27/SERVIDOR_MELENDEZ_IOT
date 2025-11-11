@@ -171,5 +171,4 @@ def sesiones_view(request):
     return render(request, 'core/sesiones.html')
 
 def alertas_view(request):
-    sesion = SesionPaciente.objects.filter(activa=True).first()
-    return render(request, 'core/alertas.html', {"sesion": sesion})
+    return render(request, 'core/alertas.html')
