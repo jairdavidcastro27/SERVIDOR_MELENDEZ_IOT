@@ -3,255 +3,476 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alertas y Mensajes</title>
+    <title>Mensajes</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+            background: #f4f6f9;
+            color: #333;
             padding: 20px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
         .header {
+            background: #4f46e5;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .actions {
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: 0.2s;
+        }
+
+        .btn i { font-size: 1rem; }
+
+        .btn-primary { background: #4f46e5; color: white; }
+        .btn-primary:hover { background: #4338ca; }
+
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #0d9f6e; }
+
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background: #d1d5db; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: auto;
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
         }
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-        }
-        .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            border: none;
+
+        .modal-title { font-size: 1.3rem; margin: 0; }
+
+        .close-btn {
             background: none;
-            font-size: 16px;
-        }
-        .tab.active {
-            border-bottom: 2px solid #007bff;
-            color: #007bff;
-        }
-        .content {
-            display: none;
-        }
-        .content.active {
-            display: block;
-        }
-        .card {
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        .alerta {
-            background-color: #fff3cd;
-            border-color: #ffeeba;
-        }
-        .mensaje {
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-        .btn {
-            padding: 8px 16px;
             border: none;
-            border-radius: 4px;
+            font-size: 1.5rem;
             cursor: pointer;
+            color: #999;
         }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        .form-group input, .form-group textarea {
+
+        .close-btn:hover { color: #ef4444; }
+
+        .modal-body { padding: 20px; }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: 500; }
+
+        textarea {
             width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+            min-height: 100px;
+            resize: vertical;
         }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 15px 0;
+            font-size: 0.9rem;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .messages-container {
+            padding: 15px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+
+        .sent {
+            background: #dcf8c6;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+
+        .received {
+            background: #f1f3f4;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.75rem;
+            color: #777;
+            margin-top: 4px;
+            text-align: right;
+        }
+
+        .empty {
+            text-align: center;
+            color: #888;
+            padding: 30px;
+            font-size: 0.95rem;
+        }
+
+        .empty i { font-size: 2rem; margin-bottom: 10px; opacity: 0.5; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Alertas y Mensajes</h1>
-            <button class="btn btn-primary" onclick="showNuevoMensaje()">Nuevo Mensaje</button>
-        </div>
 
-        <div class="tabs">
-            <button class="tab active" onclick="cambiarTab('alertas')">Alertas</button>
-            <button class="tab" onclick="cambiarTab('mensajes')">Mensajes</button>
-        </div>
-
-        <div id="alertas" class="content active">
-            <div id="alertasContent"></div>
-        </div>
-
-        <div id="mensajes" class="content">
-            <div id="mensajesContent"></div>
-        </div>
+<div class="container">
+    <div class="header">
+        <i class="fas fa-comments"></i> Mensajes
     </div>
 
-    <!-- Modal para nuevo mensaje -->
-    <div id="mensajeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-        <div style="background: white; padding: 20px; max-width: 500px; margin: 50px auto; border-radius: 8px;">
-            <h2>Nuevo Mensaje</h2>
-            <form id="mensajeForm">
+    <div class="actions">
+        <button class="btn btn-secondary" onclick="navigate('/monitor/')">
+            <i class="fas fa-tv"></i> Monitor
+        </button>
+        <button class="btn btn-primary" onclick="showNuevoMensaje()">
+            <i class="fas fa-paper-plane"></i> Enviar Mensaje
+        </button>
+    </div>
+
+    <div id="mensajesContent" class="messages-container">
+        <div class="empty">
+            <i class="fas fa-inbox"></i>
+            <p>No hay mensajes aún.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="mensajeModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">Nuevo Mensaje</h2>
+            <button class="close-btn" onclick="hideNuevoMensaje()">&times;</button>
+        </div>
+        <form id="mensajeForm">
+            <div class="modal-body">
                 <div class="form-group">
                     <label for="mensaje">Mensaje:</label>
-                    <textarea id="mensaje" required maxlength="128"></textarea>
+                    <textarea id="mensaje" maxlength="128" placeholder="Escribe tu mensaje..." required></textarea>
+                    <small>Máximo 128 caracteres</small>
                 </div>
-                <button type="submit" class="btn btn-primary">Enviar</button>
-                <button type="button" onclick="hideNuevoMensaje()" class="btn">Cancelar</button>
-            </form>
+                <div class="form-check">
+                    <input type="checkbox" id="interrumpirRadar">
+                    <label for="interrumpirRadar">Interrumpir radar en OLED</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideNuevoMensaje()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i> Enviar
+                </button>
+            </div>
+        </form>
+        <div style="padding: 15px; border-top: 1px solid #eee;">
+            <button type="button" class="btn btn-success w-100" onclick="reanudarRadar()">
+                <i class="fas fa-sync-alt"></i> Reanudar Radar
+            </button>
         </div>
     </div>
+</div>
 
-    <script>
-        // Verificar autenticación
-        if (!localStorage.getItem('token')) {
+<script>
+    // Variables globales
+    const token = localStorage.getItem('token');
+    let sesionActivaId = null;
+    
+    // Verificar autenticación
+    if (!token) {
+        window.location.href = '/login_cuidador/';
+    }
+
+    // Cargar mensajes al inicio
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!token) {
             window.location.href = '/login_cuidador/';
+            return;
         }
 
-        const token = localStorage.getItem('token');
-
-        // Cargar datos al iniciar
-        window.onload = function() {
-            loadAlertas();
-            loadMensajes();
+        obtenerSesionActiva()
+            .then(() => loadMensajes())
+            .catch(error => {
+                console.error('Error al cargar datos iniciales:', error);
+                alert('Error al cargar los datos. Por favor, recarga la página.');
+            });
+        
+        // Actualizar mensajes cada 30 segundos
+        setInterval(loadMensajes, 30000);
+        
+        // Configurar manejador de formulario
+        const form = document.getElementById('mensajeForm');
+        if (form) {
+            form.addEventListener('submit', handleEnviarMensaje);
         }
+    });
 
-        function cambiarTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-
-            document.querySelector(`.tab:nth-child(${tab === 'alertas' ? '1' : '2'})`).classList.add('active');
-            document.getElementById(tab).classList.add('active');
-        }
-
-        async function loadAlertas() {
-            try {
-                const response = await fetch('/api/alertas/', {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const alertas = await response.json();
-                displayAlertas(alertas);
-            } catch (error) {
-                console.error('Error:', error);
+    async function obtenerSesionActiva() {
+        try {
+            const response = await fetch('/api/paciente-actual/', { 
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                } 
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al obtener la sesión activa');
             }
-        }
-
-        async function loadMensajes() {
-            try {
-                const response = await fetch('/api/mensajes/', {
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                const mensajes = await response.json();
-                displayMensajes(mensajes);
-            } catch (error) {
-                console.error('Error:', error);
+            
+            const data = await response.json();
+            if (data && data.id) {
+                sesionActivaId = data.id;
+                return data;
             }
+            return null;
+        } catch (error) {
+            console.error('Error en obtenerSesionActiva:', error);
+            throw error;
         }
+    }
 
-        function displayAlertas(alertas) {
-            const content = document.getElementById('alertasContent');
-            if (alertas.length === 0) {
-                content.innerHTML = '<p>No hay alertas pendientes.</p>';
-                return;
+    function showNuevoMensaje() {
+        document.getElementById('mensajeModal').style.display = 'flex';
+        setTimeout(() => document.getElementById('mensaje').focus(), 100);
+    }
+
+    function hideNuevoMensaje() {
+        const modal = document.getElementById('mensajeModal');
+        modal.style.display = 'none';
+        document.getElementById('mensajeForm').reset();
+    }
+
+    async function loadMensajes() {
+        try {
+            const response = await fetch('/api/mensajes/', { 
+                headers: { 
+                    'Authorization': `Token ${token}`,
+                    'Content-Type': 'application/json'
+                } 
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al cargar los mensajes');
             }
+            const mensajes = await response.json();
+            displayMensajes(mensajes);
+        } catch (error) {
+            console.error('Error en loadMensajes:', error);
+            throw error;
+        }
+    }
 
-            content.innerHTML = alertas.map(alerta => `
-                <div class="card alerta">
-                    <h3>${alerta.tipo}</h3>
-                    <p>${alerta.mensaje}</p>
-                    <p><small>Severidad: ${alerta.severidad}</small></p>
-                    <p><small>${new Date(alerta.timestamp).toLocaleString()}</small></p>
-                    ${!alerta.vista ? `<button class="btn btn-primary" onclick="marcarAlertaVista(${alerta.id})">Marcar como vista</button>` : ''}
-                </div>
-            `).join('');
+    function displayMensajes(mensajes) {
+        const container = document.getElementById('mensajesContent');
+        if (mensajes.length === 0) {
+            container.innerHTML = `<div class="empty"><i class="fas fa-inbox"></i><p>No hay mensajes aún.</p></div>`;
         }
 
-        function displayMensajes(mensajes) {
-            const content = document.getElementById('mensajesContent');
-            if (mensajes.length === 0) {
-                content.innerHTML = '<p>No hay mensajes.</p>';
-                return;
+        let html = '';
+        const cuidadorId = localStorage.getItem('cuidador_id');
+
+        mensajes.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+        mensajes.forEach(m => {
+            const esEnviado = m.remitente_id == cuidadorId;
+            const hora = new Date(m.fecha).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+            html += `
+                <div class="message ${esEnviado ? 'sent' : 'received'}">
+                    <div>${escapeHtml(m.contenido)}</div>
+                    <div class="message-time">${hora}</div>
+                </div>`;
+        });
+
+        container.innerHTML = html;
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function handleEnviarMensaje(e) {
+    e.preventDefault();
+    
+    const mensajeInput = document.getElementById('mensaje');
+    const mensaje = mensajeInput.value.trim();
+
+    if (!mensaje) {
+        alert('Por favor, escribe un mensaje');
+        mensajeInput.focus();
+        return;
+    }
+
+    // Verificar que tengamos una sesión activa
+    if (!sesionActivaId) {
+        alert('Error: No hay una sesión activa. Por favor, inicia una sesión primero.');
+        return;
+    }
+
+    // Obtener el ID del cuidador desde localStorage
+    const cuidadorId = localStorage.getItem('cuidador_id');
+    if (!cuidadorId) {
+        alert('Error: No se encontró el ID del cuidador. Por favor, inicia sesión nuevamente.');
+        window.location.href = '/login_cuidador/';
+        return;
+    }
+
+    const mensajeData = {
+    mensaje: mensaje,            // ✅ ahora coincide con el modelo
+    sesion: parseInt(sesionActivaId),
+    cuidador: parseInt(cuidadorId)
+};
+
+    console.log('Enviando mensaje con datos:', mensajeData);
+
+    try {
+        const response = await fetch('/api/mensajes/', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Token ${token}` 
+            },
+            body: JSON.stringify(mensajeData)
+        });
+
+        const responseData = await response.json().catch(() => ({}));
+        
+        if (!response.ok) {
+            console.error('Error del servidor:', response.status, response.statusText, responseData);
+            throw new Error(responseData.detail || 
+                          responseData.error || 
+                          `Error al enviar el mensaje (${response.status})`);
+        }
+
+        console.log('Mensaje enviado correctamente:', responseData);
+        
+        // Limpiar el formulario y recargar mensajes
+        mensajeInput.value = '';
+        hideNuevoMensaje();
+        await loadMensajes();
+        
+    } catch (error) {
+        console.error('Error en handleEnviarMensaje:', error);
+        alert('Error al enviar el mensaje: ' + (error.message || 'Error desconocido'));
+    }
+}
+
+
+    async function reanudarRadar() {
+        if (!sesionActivaId) {
+            alert('No hay una sesión activa. No se puede reanudar el radar.');
+            return;
+        }
+        
+        if (!confirm('¿Estás seguro de que deseas reanudar el radar en el OLED?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/comandos/', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Token ${token}` 
+                },
+                body: JSON.stringify({ 
+                    sesion: sesionActivaId, 
+                    comando: 'RESUME_RADAR', 
+                    parametros: '' 
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || 'Error al enviar el comando');
             }
-
-            content.innerHTML = mensajes.map(mensaje => `
-                <div class="card mensaje">
-                    <p>${mensaje.mensaje}</p>
-                    <p><small>Enviado: ${new Date(mensaje.timestamp).toLocaleString()}</small></p>
-                    <p><small>Estado: ${mensaje.leido ? 'Leído' : 'No leído'}</small></p>
-                </div>
-            `).join('');
+            
+            alert('El radar se ha reanudado correctamente');
+        } catch (error) {
+            console.error('Error en reanudarRadar:', error);
+            alert('Error al reanudar el radar: ' + (error.message || 'Error desconocido'));
         }
+    }
 
-        async function marcarAlertaVista(id) {
-            try {
-                await fetch(`/api/alertas/${id}/marcar_vista/`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Token ${token}`
-                    }
-                });
-                loadAlertas();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
+    function navigate(path) {
+        document.body.style.opacity = '0';
+        setTimeout(() => window.location.href = path, 300);
+    }
 
-        function showNuevoMensaje() {
-            document.getElementById('mensajeModal').style.display = 'block';
-        }
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
 
-        function hideNuevoMensaje() {
-            document.getElementById('mensajeModal').style.display = 'none';
-            document.getElementById('mensajeForm').reset();
-        }
-
-        document.getElementById('mensajeForm').onsubmit = async function(e) {
-            e.preventDefault();
-
-            const mensaje = {
-                mensaje: document.getElementById('mensaje').value,
-                cuidador: localStorage.getItem('cuidador_id'),
-                sesion: document.querySelector('.sesion-activa')?.dataset?.id
-            };
-
-            try {
-                await fetch('/api/mensajes/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Token ${token}`
-                    },
-                    body: JSON.stringify(mensaje)
-                });
-
-                hideNuevoMensaje();
-                loadMensajes();
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        };
-    </script>
 </body>
 </html>
