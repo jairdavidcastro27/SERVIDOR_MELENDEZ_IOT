@@ -21,17 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-sru-+fx%r6cw*kv*ek)i&waj1obouam5y-7*t)1=)^=z(h@f-s'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-sru-+fx%r6cw*kv*ek)i&waj1obouam5y-7*t)1=)^=z(h@f-s')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.100.108', '*']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost,192.168.100.108,*', cast=lambda v: [s.strip() for s in v.split(',')])
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -48,6 +49,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,19 +81,22 @@ ASGI_APPLICATION = 'lentes_project.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-DATABASE_URL = config('DATABASE_URL', default='postgresql://postgres:afkmNQWFaZoMetrNgCIWSPCWyjZQKkSx@mainline.proxy.rlwy.net:57412/railway')
+default_db_url = 'sqlite:///' + os.path.join(BASE_DIR, 'db.sqlite3')
+DATABASE_URL = config('DATABASE_URL', default=default_db_url)
 DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
 }
 
-DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
+if 'postgres' in DATABASES['default']['ENGINE']:
+    DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
+
 
 # --- REDIS PARA WEBSOCKETS (crea uno en Railway) ---
-REDIS_URL = config('REDIS_URL', default='redis://default:change@host:6379')
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379')
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
             "hosts": [REDIS_URL],
         },
     },
@@ -140,45 +145,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# --- RAILWAY: Variables de entorno ---
-DEBUG = config('DEBUG', default=False, cast=bool)
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me')
-
-# --- BASE DE DATOS: Railway ---
-DATABASE_URL = config('DATABASE_URL')
-if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-    }
-    DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
-
-# --- CHANNELS: Redis en Railway ---
-REDIS_URL = config('REDIS_URL')
-if REDIS_URL:
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                "hosts": [REDIS_URL],
-            },
-        },
-    }
-
-# --- PRODUCCIÓN ---
-ALLOWED_HOSTS = [
-    
-    'servidormelendeziot-production.up.railway.app',
-    '127.0.0.1',
-    'localhost',
-]
-
-SECURE_SSL_REDIRECT = False  # Para desarrollo
-
-# --- ARCHIVOS ESTÁTICOS ---
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
