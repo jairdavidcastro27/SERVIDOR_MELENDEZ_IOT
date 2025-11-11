@@ -1022,61 +1022,59 @@
         }, 200);
     }
 
-    async function handleEnviarMensaje(e) {
-        e.preventDefault();
-        const mensaje = document.getElementById('mensaje').value.trim();
-        const interrumpirRadar = document.getElementById('interrumpirRadar').checked;
+        async function handleEnviarMensaje(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const mensajeInput = form.querySelector('#mensaje');
+            const mensaje = mensajeInput.value.trim();
+            const interrumpirRadar = form.querySelector('#interrumpirRadar').checked;
 
-        if (!mensaje) {
-            showError('Escribe un mensaje');
-            const input = document.getElementById('mensaje');
-            input.classList.add('shake');
-            setTimeout(() => input.classList.remove('shake'), 500);
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/mensajes/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Token ${token}`
-                },
-                body: JSON.stringify({
-                    contenido: mensaje,
-                    interrumpir_radar: interrumpirRadar,
-                    sesion: sesionActivaId      // ← BIEN: nombre del campo en el modelo
-                })
-            });
-
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.detail || 'Error al enviar');
+            // Validación
+            if (!mensaje) {
+                showError('Por favor ingresa un mensaje');
+                mensajeInput.classList.add('shake');
+                setTimeout(() => mensajeInput.classList.remove('shake'), 500);
+                return;
             }
 
-            if (interrumpirRadar) {
-                await fetch('/api/comandos/', {
+            try {
+                const response = await fetch('/api/enviar-mensaje/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Token ${token}`
+                    headers: { 
+                        'Authorization': `Token ${token}`,
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        sesion: sesionActivaId,
-                        comando: 'SHOW_MESSAGE',
-                        parametros: mensaje
+                        mensaje: mensaje,
+                        interrumpir_radar: interrumpirRadar,
+                        sesion: sesionActivaId
                     })
                 });
-            }
 
-            showSuccess('Mensaje enviado');
-            hideNuevoMensaje();
-            loadMensajes();
-        } catch (error) {
-            console.error('Error:', error);
-            showError(error.message || 'Error de conexión');
-        }
-    }
+                if (!response.ok) {
+                    try {
+                        const errorData = await response.json();
+                        throw new Error(errorData.mensaje || 'Error al enviar el mensaje');
+                    } catch (jsonError) {
+                        throw new Error('Error al enviar el mensaje');
+                    }
+                }
+
+                const data = await response.json();
+                
+                if (data.estado === 'ok') {
+                    showSuccess('Mensaje enviado correctamente');
+                    hideNuevoMensaje();
+                    loadMensajes();
+                } else {
+                    throw new Error(data.mensaje || 'Error al enviar el mensaje');
+                }
+            } catch (error) {
+                console.error('Error al enviar mensaje:', error);
+                showError(error.message || 'Error de conexión al enviar el mensaje');
+            }
+        };
 
     async function reanudarRadar() {
         if (!sesionActivaId) {
