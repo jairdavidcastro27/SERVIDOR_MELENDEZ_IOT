@@ -385,12 +385,11 @@
         return;
     }
 
-    // Crear el objeto de datos para el mensaje (campos correctos)
     const mensajeData = {
-        contenido: mensaje,           // Texto del mensaje
-        sesion: parseInt(sesionActivaId),  // Sesión actual
-        cuidador: parseInt(cuidadorId)     // ID del cuidador
-    };
+    mensaje: mensaje,            // ✅ ahora coincide con el modelo
+    sesion: parseInt(sesionActivaId),
+    cuidador: parseInt(cuidadorId)
+};
 
     console.log('Enviando mensaje con datos:', mensajeData);
 
