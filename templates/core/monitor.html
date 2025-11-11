@@ -19,9 +19,9 @@
             .controls{top:8px;right:8px;}
         }
     </style>
-    <!-- Sonidos Predator libres: beep y búsqueda -->
-    <audio id="sndLock" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b6c6b2.mp3" preload="auto"></audio>
-    <audio id="sndSearch" src="https://cdn.pixabay.com/audio/2022/10/16/audio_12b6b6c6b2.mp3" preload="auto"></audio>
+    <!-- Sonidos locales para evitar error 403 -->
+    <audio id="sndLock" src="/static/audio/predator_lock.mp3" preload="auto"></audio>
+    <audio id="sndSearch" src="/static/audio/predator_search.mp3" preload="auto"></audio>
 </head>
 <body>
     <div class="topbar">
@@ -472,7 +472,8 @@
         requestAnimationFrame(renderLoop);
 
         // WebSocket
-        const socketUrl = 'ws://' + window.location.host + '/ws/realtime/';
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socketUrl = protocol + '//' + window.location.host + '/ws/realtime/';
         const socket = new WebSocket(socketUrl);
         socket.onopen = function(){ console.log('WS conectado'); statusElem.textContent='Conectado'; statusElem.style.color='white'; statusElem.style.backgroundColor='green'; };
         socket.onmessage = function(e){ try{ const data=JSON.parse(e.data); console.log('Datos recibidos:',data); pacienteElem.textContent = data.paciente || pacienteElem.textContent; if (data.temperatura!==undefined && data.temperatura!==null) temperaturaElem.textContent = Number(data.temperatura).toFixed(2); const d = normalizeDistance(data.distancia); if (d!==null) distanciaElem.textContent = d.toFixed(0); else if (data.distancia!==undefined && data.distancia!==null) distanciaElem.textContent = Number(data.distancia).toFixed(2); nivelElem.textContent = data.nivel!==undefined?data.nivel:nivelElem.textContent; colorElem.textContent = data.color||colorElem.textContent; latest.distancia_cm = d; latest.nivel = data.nivel||latest.nivel; if (data.angle!==undefined) latest.angle = Number(data.angle); }catch(err){console.error(err);} };
