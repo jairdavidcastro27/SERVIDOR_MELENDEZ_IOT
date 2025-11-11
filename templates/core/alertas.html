@@ -613,6 +613,45 @@
         }
 
         const token = localStorage.getItem('token');
+
+        // Funciones de utilidad
+        function showError(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification error';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        function showSuccess(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification success';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        function groupByDate(items) {
+            return items.reduce((acc, item) => {
+                const date = new Date(item.fecha).toLocaleDateString();
+                if (!acc[date]) {
+                    acc[date] = [];
+                }
+                acc[date].push(item);
+                return acc;
+            }, {});
+        }
+
+        // Reproducir sonido
+        function playSound(type = 'alert') {
+            try {
+                const audio = new Audio(`/static/sounds/${type}.mp3`);
+                audio.play().catch(e => console.warn('No se pudo reproducir el sonido:', e));
+            } catch (e) {
+                console.warn('Error al cargar el sonido:', e);
+            }
+        }
+
         let sesionActivaId = null;
         let sesionActivaNombre = null;
         let alertaSound = new Audio('/static/sounds/alert.mp3');
@@ -645,52 +684,64 @@
         }
 
         // Cargar datos al iniciar
-        document.addEventListener('DOMContentLoaded', function() {
-            // Iniciar animación de carga
-            const container = document.querySelector('.container');
-            container.style.opacity = '0';
-            container.style.transform = 'translateY(20px)';
-            
-            // Cargar datos
-            Promise.all([
-                obtenerSesionActiva(),
-                loadAlertas(),
-                loadMensajes()
-            ]).then(() => {
-                // Mostrar contenido con animación
-                container.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                container.style.opacity = '1';
-                container.style.transform = 'translateY(0)';
-                
-                // Configurar actualización periódica
-                setInterval(loadAlertas, 30000); // Actualizar alertas cada 30 segundos
-                setInterval(loadMensajes, 60000); // Actualizar mensajes cada minuto
-            }).catch(error => {
-                console.error('Error inicializando la aplicación:', error);
-                showError('Error al cargar los datos iniciales');
-            });
-            
-            // Configurar el formulario
-            document.getElementById('mensajeForm').addEventListener('submit', handleEnviarMensaje);
-            
-            // Configurar eventos para el teclado
-            document.addEventListener('keydown', function(e) {
-                // Cerrar modal con ESC
-                if (e.key === 'Escape' && document.getElementById('mensajeModal').style.display === 'flex') {
-                    hideNuevoMensaje();
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const sesion = await obtenerSesionActiva();
+                if (!sesion.activa) {
+                    showError('No hay una sesión activa');
                 }
-            });
+
+                // Iniciar animación de carga
+                const container = document.querySelector('.container');
+                container.style.opacity = '0';
+                container.style.transform = 'translateY(20px)';
+                
+                // Cargar datos
+                Promise.all([
+                    obtenerSesionActiva(),
+                    loadAlertas(),
+                    loadMensajes()
+                ]).then(() => {
+                    // Mostrar contenido con animación
+                    container.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                    container.style.opacity = '1';
+                    container.style.transform = 'translateY(0)';
+                    
+                    // Configurar actualización periódica
+                    setInterval(loadAlertas, 30000); // Actualizar alertas cada 30 segundos
+                    setInterval(loadMensajes, 60000); // Actualizar mensajes cada minuto
+                }).catch(error => {
+                    console.error('Error inicializando la aplicación:', error);
+                    showError('Error al cargar los datos iniciales');
+                });
+                
+                // Configurar el formulario
+                document.getElementById('mensajeForm').addEventListener('submit', handleEnviarMensaje);
+                
+                // Configurar eventos para el teclado
+                document.addEventListener('keydown', function(e) {
+                    // Cerrar modal con ESC
+                    if (e.key === 'Escape' && document.getElementById('mensajeModal').style.display === 'flex') {
+                        hideNuevoMensaje();
+                    }
+                });
+            } catch (error) {
+                console.error('Error al iniciar la aplicación:', error);
+                showError('Error al cargar los datos iniciales');
+            }
         });
 
         async function obtenerSesionActiva() {
             try {
-                const res = await fetch('/api/paciente-activo/', {
+                const response = await fetch('/api/paciente-activo/', {
                     headers: { 'Authorization': `Token ${token}` }
                 });
-                const data = await res.json();
-                
-                if (res.ok && !data.mensaje) {
-                    sesionActivaId = data.id;
+                if (!response.ok) {
+                    throw new Error('Error al obtener la sesión activa');
+                }
+                const data = await response.json();
+                if (data.activa) {
+                    sesionActivaId = data.sesion_id;
                     sesionActivaNombre = `${data.paciente?.nombre || ''} ${data.paciente?.apellido || ''}`.trim();
                     
                     // Actualizar la interfaz si es necesario
