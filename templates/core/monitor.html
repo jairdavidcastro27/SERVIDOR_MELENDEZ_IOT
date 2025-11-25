@@ -387,21 +387,11 @@
           data.angle = Number(d.angle);
         }
         if (d.color !== undefined) {
-          const c = String(d.color).toUpperCase();   // 👈 normaliza
-
-          data.color = c;
-          colorEl.textContent = c;
-
-          const colorMap = {
-            'ROJO': '#ff3300',
-            'VERDE': '#00ff00',
-            'AZUL': '#0099ff',
-            'BLANCO': '#ffffff',
-            'NINGUNO': '#cccccc'
-          };
-
-          colorEl.style.color = colorMap[c] || '#cccccc';
+          data.color = d.color;
+          colorEl.textContent = d.color;   // muestra tal cual
+          colorEl.style.color = "#ffffff"; // 🔥 el texto SIEMPRE será blanco
         }
+
 
 
         // TEMPERATURA
