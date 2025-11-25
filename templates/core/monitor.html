@@ -1,41 +1,66 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Monitor Simple - Caminata</title>
   <style>
-    * { margin:0; padding:0; box-sizing: border-box; }
-    body { 
-      background:#000; 
-      color:#fff; 
-      font-family:Arial; 
-      overflow:hidden; 
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: Arial;
+      overflow: hidden;
       height: 100vh;
       width: 100vw;
     }
-    canvas { 
-      display:block; 
+
+    canvas {
+      display: block;
       width: 100%;
       height: 100%;
     }
+
     .hud {
-      position: fixed; 
-      top: 15px; 
-      left: 15px; 
-      background:rgba(0,0,0,0.6); 
-      padding:12px; 
-      border-radius:8px; 
-      font-size:14px;
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
       z-index: 10;
       max-width: 90%;
       line-height: 1.4;
     }
-    .status { color:#0f0; font-weight:bold; }
-    .disconnected { color:#f00; }
-    .warning { color: #ff9900; }
-    .danger { color: #ff3300; }
-    .fever { color: #ff3300; font-weight: bold; }
+
+    .status {
+      color: #0f0;
+      font-weight: bold;
+    }
+
+    .disconnected {
+      color: #f00;
+    }
+
+    .warning {
+      color: #ff9900;
+    }
+
+    .danger {
+      color: #ff3300;
+    }
+
+    .fever {
+      color: #ff3300;
+      font-weight: bold;
+    }
 
     .toolbar {
       position: fixed;
@@ -51,16 +76,16 @@
     .toolbar-group {
       display: flex;
       gap: 8px;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0, 0, 0, 0.6);
       padding: 10px 12px;
       border-radius: 8px;
       backdrop-filter: blur(6px);
     }
 
     .toolbar button {
-      background: rgba(255,255,255,0.1);
+      background: rgba(255, 255, 255, 0.1);
       color: #fff;
-      border: 1px solid rgba(255,255,255,0.2);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 6px;
       padding: 6px 10px;
       cursor: pointer;
@@ -69,7 +94,7 @@
     }
 
     .toolbar button:hover {
-      background: rgba(255,255,255,0.25);
+      background: rgba(255, 255, 255, 0.25);
       transform: translateY(-1px);
     }
 
@@ -96,6 +121,7 @@
         top: 10px;
         left: 10px;
       }
+
       .toolbar {
         top: auto;
         bottom: 15px;
@@ -103,13 +129,14 @@
         flex-direction: column;
         align-items: flex-end;
       }
+
       .toolbar-group {
         font-size: 12px;
         flex-wrap: wrap;
         justify-content: flex-end;
       }
     }
-    
+
     @media (max-width: 480px) {
       .hud {
         font-size: 11px;
@@ -118,293 +145,296 @@
     }
   </style>
 </head>
+
 <body>
 
-<div class="toolbar">
-  <div class="toolbar-group">
-    <button class="primary" onclick="navigate('/monitor/')">Monitor</button>
-    <button onclick="navigate('/pacientes/')">Pacientes</button>
-    <button onclick="navigate('/sesiones/')">Sesiones</button>
-    <button onclick="navigate('/alertas/')">Alertas</button>
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button class="primary" onclick="navigate('/monitor/')">Monitor</button>
+      <button onclick="navigate('/pacientes/')">Pacientes</button>
+      <button onclick="navigate('/sesiones/')">Sesiones</button>
+      <button onclick="navigate('/alertas/')">Alertas</button>
+    </div>
+    <div class="toolbar-group">
+      <button class="danger" onclick="finalizarSesion()">Finalizar sesión activa</button>
+      <button class="logout" onclick="logout()">Cerrar sesión</button>
+    </div>
   </div>
-  <div class="toolbar-group">
-    <button class="danger" onclick="finalizarSesion()">Finalizar sesión activa</button>
-    <button class="logout" onclick="logout()">Cerrar sesión</button>
+
+  <div class="hud">
+    <div id="status" class="status">Conectado</div>
+    <div>Paciente: <span id="paciente">-</span></div>
+    <div>Distancia: <span id="distancia">-</span> cm</div>
+    <div>Nivel: <span id="nivel">-</span></div>
+    <div>Color: <span id="color" style="font-weight:bold">-</span></div>
+    <div>Temp: <span id="temperatura" style="font-weight:bold">-</span></div>
   </div>
-</div>
 
-<div class="hud">
-  <div id="status" class="status">Conectado</div>
-  <div>Paciente: <span id="paciente">-</span></div>
-  <div>Distancia: <span id="distancia">-</span> cm</div>
-  <div>Nivel: <span id="nivel">-</span></div>
-  <div>Color: <span id="color" style="font-weight:bold">-</span></div>
-  <div>Temp: <span id="temperatura" style="font-weight:bold">-</span></div>
-</div>
+  <canvas id="canvas"></canvas>
 
-<canvas id="canvas"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+    const pacienteEl = document.getElementById('paciente');
+    const distanciaEl = document.getElementById('distancia');
+    const nivelEl = document.getElementById('nivel');
+    const colorEl = document.getElementById('color');
+    const temperaturaEl = document.getElementById('temperatura');
 
-<script>
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
-  const status = document.getElementById('status');
-  const pacienteEl = document.getElementById('paciente');
-  const distanciaEl = document.getElementById('distancia');
-  const nivelEl = document.getElementById('nivel');
-  const colorEl = document.getElementById('color');
-  const temperaturaEl = document.getElementById('temperatura');
-
-  // Autenticación básica del lado del cliente
-  const token = localStorage.getItem('token');
-  if (!token) {
-    window.location.href = '/login_cuidador/';
-  }
-
-  function navigate(path) {
-    window.location.href = path;
-  }
-
-  function logout() {
-    if (confirm('¿Cerrar sesión del cuidador?')) {
-      localStorage.removeItem('token');
+    // Autenticación básica del lado del cliente
+    const token = localStorage.getItem('token');
+    if (!token) {
       window.location.href = '/login_cuidador/';
     }
-  }
 
-  async function finalizarSesion() {
-    if (!confirm('¿Finalizar la sesión activa del paciente?')) return;
-    try {
-      const res = await fetch('/api/sesiones/finalizar_activa/', {
-        method: 'POST',
-        headers: { 'Authorization': `Token ${token}` }
-      });
-      if (!res.ok) throw new Error('No se pudo finalizar la sesión.');
-      alert('Sesión finalizada correctamente.');
-    } catch (err) {
-      alert(err.message || 'Error al finalizar la sesión.');
+    function navigate(path) {
+      window.location.href = path;
     }
-  }
 
-  // Variables de estado
-  let data = { distancia: null, nivel: 0, paciente: '-', angle: 0, color: 'NINGUNO', temperatura: null };
-  let walkTime = 0;
-  let collisionAnimation = 0;
-  let lastDistance = null;
-  
-  // Umbrales
-  const COLLISION_DISTANCE = 10;
-  const WARNING_DISTANCE = 20;
-  const FIEBRE_TEMP = 38.0;
-
-  // Ajustar canvas
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  // Dibujar persona
-  function drawPerson(x, y) {
-    const step = Math.sin(walkTime * 8) * 0.15;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(x, y - 20, 8, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillRect(x-6, y-12, 12, 18);
-    ctx.fillRect(x-4 + step*10, y+6, 4, 12);
-    ctx.fillRect(x+0 - step*10, y+6, 4, 12);
-    ctx.fillRect(x-8, y-8, 4, 10);
-    ctx.fillRect(x+4, y-8, 4, 10);
-  }
-
-  // Dibujar obstáculo
-  function drawObstacle(dist, angle) {
-    if (!dist || dist > 40) return;
-    
-    const horizon = canvas.height * 0.6;
-    const scale = 1 - (dist / 40);
-    const size = 30 * scale;
-    const y = horizon - size * 0.8;
-    const x = canvas.width/2 + angle * 3;
-
-    let pulseEffect = 0;
-    if (dist < WARNING_DISTANCE) {
-      pulseEffect = Math.sin(walkTime * 10) * 3;
+    function logout() {
+      if (confirm('¿Cerrar sesión del cuidador?')) {
+        localStorage.removeItem('token');
+        window.location.href = '/login_cuidador/';
+      }
     }
-    
-    if (dist < COLLISION_DISTANCE) {
-      ctx.fillStyle = '#ff3300';
-    } else if (dist < WARNING_DISTANCE) {
-      ctx.fillStyle = '#ff9900';
-    } else {
-      ctx.fillStyle = '#f66';
+
+    async function finalizarSesion() {
+      if (!confirm('¿Finalizar la sesión activa del paciente?')) return;
+      try {
+        const res = await fetch('/api/sesiones/finalizar_activa/', {
+          method: 'POST',
+          headers: { 'Authorization': `Token ${token}` }
+        });
+        if (!res.ok) throw new Error('No se pudo finalizar la sesión.');
+        alert('Sesión finalizada correctamente.');
+      } catch (err) {
+        alert(err.message || 'Error al finalizar la sesión.');
+      }
     }
-    
-    ctx.fillRect(x - size/2 - pulseEffect/2, y - size/2 - pulseEffect/2, 
-                 size + pulseEffect, size + pulseEffect);
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(Math.round(dist)+'cm', x, y - size/2 - 5);
-    
-    ctx.strokeStyle = dist < COLLISION_DISTANCE ? '#ff3300' : 
-                     dist < WARNING_DISTANCE ? '#ff9900' : '#666';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(canvas.width/2, canvas.height * 0.75);
-    ctx.stroke();
-  }
 
-  // Animación de colisión persistente
-  function drawCollision() {
-    if (collisionAnimation <= 0) return;
-    
-    const intensity = collisionAnimation;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height * 0.75;
-    
-    ctx.strokeStyle = `rgba(255, 50, 50, ${intensity})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 50 * (1 - intensity), 0, Math.PI * 2);
-    ctx.stroke();
-    
-    ctx.fillStyle = `rgba(255, 100, 100, ${intensity * 0.3})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 24px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('¡COLISIÓN INMINENTE!', centerX, centerY - 50);
-    
-    if (data.distancia >= COLLISION_DISTANCE) {
-      collisionAnimation = Math.max(0, collisionAnimation - 0.05);
+    // Variables de estado
+    let data = { distancia: null, nivel: 0, paciente: '-', angle: 0, color: 'NINGUNO', temperatura: null };
+    let walkTime = 0;
+    let collisionAnimation = 0;
+    let lastDistance = null;
+
+    // Umbrales
+    const COLLISION_DISTANCE = 10;
+    const WARNING_DISTANCE = 20;
+    const FIEBRE_TEMP = 38.0;
+
+    // Ajustar canvas
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     }
-  }
+    resize();
+    window.addEventListener('resize', resize);
 
-  // Animación principal
-  function animate() {
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Suelo
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 15; i++) {
-      const y = canvas.height * 0.6 + i * 15;
+    // Dibujar persona
+    function drawPerson(x, y) {
+      const step = Math.sin(walkTime * 8) * 0.15;
+      ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
+      ctx.arc(x, y - 20, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x - 6, y - 12, 12, 18);
+      ctx.fillRect(x - 4 + step * 10, y + 6, 4, 12);
+      ctx.fillRect(x + 0 - step * 10, y + 6, 4, 12);
+      ctx.fillRect(x - 8, y - 8, 4, 10);
+      ctx.fillRect(x + 4, y - 8, 4, 10);
+    }
+
+    // Dibujar obstáculo
+    function drawObstacle(dist, angle) {
+      if (!dist || dist > 40) return;
+
+      const horizon = canvas.height * 0.6;
+      const scale = 1 - (dist / 40);
+      const size = 30 * scale;
+      const y = horizon - size * 0.8;
+      const x = canvas.width / 2 + angle * 3;
+
+      let pulseEffect = 0;
+      if (dist < WARNING_DISTANCE) {
+        pulseEffect = Math.sin(walkTime * 10) * 3;
+      }
+
+      if (dist < COLLISION_DISTANCE) {
+        ctx.fillStyle = '#ff3300';
+      } else if (dist < WARNING_DISTANCE) {
+        ctx.fillStyle = '#ff9900';
+      } else {
+        ctx.fillStyle = '#f66';
+      }
+
+      ctx.fillRect(x - size / 2 - pulseEffect / 2, y - size / 2 - pulseEffect / 2,
+        size + pulseEffect, size + pulseEffect);
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(Math.round(dist) + 'cm', x, y - size / 2 - 5);
+
+      ctx.strokeStyle = dist < COLLISION_DISTANCE ? '#ff3300' :
+        dist < WARNING_DISTANCE ? '#ff9900' : '#666';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(canvas.width / 2, canvas.height * 0.75);
       ctx.stroke();
     }
 
-    const px = canvas.width / 2;
-    const py = canvas.height * 0.75;
-    drawPerson(px, py);
-    drawObstacle(data.distancia, data.angle);
-    drawCollision();
+    // Animación de colisión persistente
+    function drawCollision() {
+      if (collisionAnimation <= 0) return;
 
-    walkTime += 0.016;
-    requestAnimationFrame(animate);
-  }
-  animate();
+      const intensity = collisionAnimation;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height * 0.75;
 
-  // WebSocket
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(protocol + '//' + window.location.host + '/ws/realtime/');
+      ctx.strokeStyle = `rgba(255, 50, 50, ${intensity})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 50 * (1 - intensity), 0, Math.PI * 2);
+      ctx.stroke();
 
-  ws.onopen = () => {
-    status.textContent = 'Conectado';
-    status.className = 'status';
-  };
+      ctx.fillStyle = `rgba(255, 100, 100, ${intensity * 0.3})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ws.onmessage = (e) => {
-    try {
-      const d = JSON.parse(e.data);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('¡COLISIÓN INMINENTE!', centerX, centerY - 50);
 
-      // Paciente
-      if (d.paciente) {
-        pacienteEl.textContent = d.paciente;
+      if (data.distancia >= COLLISION_DISTANCE) {
+        collisionAnimation = Math.max(0, collisionAnimation - 0.05);
       }
-
-      // Distancia
-      if (d.distancia !== undefined) {
-        const dist = Number(d.distancia);
-        data.distancia = dist <= 4 ? dist * 100 : Math.round(dist);
-        distanciaEl.textContent = data.distancia;
-
-        // Color de distancia
-        if (data.distancia < COLLISION_DISTANCE) {
-          distanciaEl.className = 'danger';
-          collisionAnimation = 1;
-        } else if (data.distancia < WARNING_DISTANCE) {
-          distanciaEl.className = 'warning';
-        } else {
-          distanciaEl.className = '';
-        }
-        lastDistance = data.distancia;
-      }
-
-      // Nivel
-      if (d.nivel !== undefined) {
-        data.nivel = d.nivel;
-        nivelEl.textContent = d.nivel;
-      }
-
-      // Ángulo
-      if (d.angle !== undefined) {
-        data.angle = Number(d.angle);
-      }
-
-      // COLOR DETECTADO
-      if (d.color !== undefined) {
-        data.color = d.color;
-        colorEl.textContent = d.color;
-
-        // Aplicar color real al texto
-        const colorMap = {
-          'ROJO': '#ff3300',
-          'VERDE': '#00ff00',
-          'AZUL': '#0099ff',
-          'BLANCO': '#ffffff',
-          'NINGUNO': '#cccccc'
-        };
-        colorEl.style.color = colorMap[d.color] || '#cccccc';
-      }
-
-      // TEMPERATURA
-      if (d.temperatura !== undefined) {
-        data.temperatura = Number(d.temperatura).toFixed(1);
-        temperaturaEl.textContent = data.temperatura + '°C';
-
-        // Alerta de fiebre
-        if (data.temperatura > FIEBRE_TEMP) {
-          temperaturaEl.className = 'fever';
-          // Opcional: vibrar o sonido
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        } else {
-          temperaturaEl.className = '';
-        }
-      }
-
-    } catch (err) {
-      console.error('Error WebSocket:', err);
     }
-  };
 
-  ws.onclose = () => {
-    status.textContent = 'Desconectado';
-    status.className = 'disconnected';
-  };
+    // Animación principal
+    function animate() {
+      ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ws.onerror = (err) => {
-    console.error('WebSocket error:', err);
-    status.textContent = 'Error';
-    status.className = 'disconnected';
-  };
-</script>
+      // Suelo
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 15; i++) {
+        const y = canvas.height * 0.6 + i * 15;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      const px = canvas.width / 2;
+      const py = canvas.height * 0.75;
+      drawPerson(px, py);
+      drawObstacle(data.distancia, data.angle);
+      drawCollision();
+
+      walkTime += 0.016;
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(protocol + '//' + window.location.host + '/ws/realtime/');
+
+    ws.onopen = () => {
+      status.textContent = 'Conectado';
+      status.className = 'status';
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+
+        // Paciente
+        if (d.paciente) {
+          pacienteEl.textContent = d.paciente;
+        }
+
+        // Distancia
+        if (d.distancia !== undefined) {
+          const dist = Number(d.distancia);
+          data.distancia = dist <= 4 ? dist * 100 : Math.round(dist);
+          distanciaEl.textContent = data.distancia;
+
+          // Color de distancia
+          if (data.distancia < COLLISION_DISTANCE) {
+            distanciaEl.className = 'danger';
+            collisionAnimation = 1;
+          } else if (data.distancia < WARNING_DISTANCE) {
+            distanciaEl.className = 'warning';
+          } else {
+            distanciaEl.className = '';
+          }
+          lastDistance = data.distancia;
+        }
+
+        // Nivel
+        if (d.nivel !== undefined) {
+          data.nivel = d.nivel;
+          nivelEl.textContent = d.nivel;
+        }
+
+        // Ángulo
+        if (d.angle !== undefined) {
+          data.angle = Number(d.angle);
+        }
+        if (d.color !== undefined) {
+          const c = String(d.color).toUpperCase();   // 👈 normaliza
+
+          data.color = c;
+          colorEl.textContent = c;
+
+          const colorMap = {
+            'ROJO': '#ff3300',
+            'VERDE': '#00ff00',
+            'AZUL': '#0099ff',
+            'BLANCO': '#ffffff',
+            'NINGUNO': '#cccccc'
+          };
+
+          colorEl.style.color = colorMap[c] || '#cccccc';
+        }
+
+
+        // TEMPERATURA
+        if (d.temperatura !== undefined) {
+          data.temperatura = Number(d.temperatura).toFixed(1);
+          temperaturaEl.textContent = data.temperatura + '°C';
+
+          // Alerta de fiebre
+          if (data.temperatura > FIEBRE_TEMP) {
+            temperaturaEl.className = 'fever';
+            // Opcional: vibrar o sonido
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          } else {
+            temperaturaEl.className = '';
+          }
+        }
+
+      } catch (err) {
+        console.error('Error WebSocket:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      status.textContent = 'Desconectado';
+      status.className = 'disconnected';
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+      status.textContent = 'Error';
+      status.className = 'disconnected';
+    };
+  </script>
 </body>
+
 </html>
